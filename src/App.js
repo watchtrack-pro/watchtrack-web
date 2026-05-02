@@ -109,7 +109,8 @@ function MainApp({ session }) {
     reparation: REPARATIONS[0], reparationCustom: "", statut: "Reçue", prix: "", date: "", date_returned: "", notes: "",
   });
 
-  useEffect(() => { loadRepairs(); loadAtelier(); }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+useEffect(() => { loadRepairs(); loadAtelier(); }, []);
 
   async function loadRepairs() {
     setLoading(true);
