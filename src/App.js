@@ -9,6 +9,7 @@ const supabase = createClient(
 
 const STATUTS = ["Reçue", "En diagnostic", "En réparation", "En attente de pièce", "Prête", "Rendue"];
 const STATUTS_BOUTONS = ["En diagnostic", "En réparation", "En attente de pièce", "Prête", "Rendue"];
+const REPARATIONS = ["Changement de pile", "Révision complète", "Changement de verre", "Réglage de bracelet", "Remise en marche", "Nettoyage & graissage", "Changement de couronne", "Étanchéité", "Aiguillage", "Collage index", "Autre (écrire)"];
 
 const STATUT_COLORS = {
   "Reçue": { accent: "#1A5FA8", bgLight: "#B8D9F5", rowBg: "#C8E4FF" },
@@ -18,12 +19,6 @@ const STATUT_COLORS = {
   "Prête": { accent: "#1A6E35", bgLight: "#90DCA8", rowBg: "#A8EFC0" },
   "Rendue": { accent: "#8B1A1A", bgLight: "#F0A0A0", rowBg: "#FFB8B8" },
 };
-
-const REPARATIONS = [
-  "Changement de pile", "Révision complète", "Changement de verre",
-  "Réglage de bracelet", "Remise en marche", "Nettoyage & graissage",
-  "Changement de couronne", "Étanchéité", "Aiguillage", "Collage index", "Autre (écrire)",
-];
 
 function isOld(dateStr, statut) {
   if (!dateStr || statut === "Rendue") return false;
@@ -49,11 +44,12 @@ function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   async function handleAuth() {
-    setError(""); setLoading(true);
+    setError("");
+    setLoading(true);
     if (isSignUp) {
       const { error } = await supabase.auth.signUp({ email, password });
       if (error) setError(error.message);
-      else setError("✅ Vérifiez votre email !");
+      else setError("✅ Compte créé ! Connectez-vous !");
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) setError("❌ Email ou mot de passe incorrect !");
@@ -67,7 +63,7 @@ function LoginPage() {
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{ width: 60, height: 60, background: "linear-gradient(135deg, #34C759, #2E8B4A)", borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, margin: "0 auto 16px" }}>⌚</div>
           <h1 style={{ fontSize: 24, fontWeight: "800", color: "#1d1d1f", marginBottom: 4 }}>WatchTrack MontrePro</h1>
-          <p style={{ color: "#86868b", fontSize: 14 }}>{isSignUp ? "Créer un compte" : "Connectez-vous"}</p>
+          <p style={{ color: "#86868b", fontSize: 14 }}>{isSignUp ? "Créer un compte" : "Connectez-vous à votre atelier"}</p>
         </div>
         <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)}
           style={{ width: "100%", padding: "14px 16px", background: "rgba(118,118,128,0.08)", border: "none", borderRadius: 12, fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box", marginBottom: 12 }} />
@@ -109,34 +105,36 @@ function MainApp({ session }) {
     reparation: REPARATIONS[0], reparationCustom: "", statut: "Reçue", prix: "", date: "", date_returned: "", notes: "",
   });
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-useEffect(() => { loadRepairs(); loadAtelier(); }, []);
+  const userId = session.user.id;
 
-async function loadRepairs() {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadRepairs(); loadAtelier(); }, []);
+
+  async function loadRepairs() {
     setLoading(true);
     const { data, error } = await supabase
       .from("repairs")
       .select("*")
-      .eq("user_id", session.user.id)
+      .eq("user_id", userId)
       .order("id", { ascending: false });
     if (error) console.error("Erreur chargement:", error);
     if (!error) setRepairs(data || []);
     setLoading(false);
   }
+
   async function loadAtelier() {
-    const saved = localStorage.getItem(`atelier_${session.user.id}`);
+    const saved = localStorage.getItem(`atelier_${userId}`);
     if (saved) setAtelier(JSON.parse(saved));
   }
 
-async function handleSubmit() {
+  async function handleSubmit() {
     if (!form.client || !form.marque) {
       alert("Veuillez remplir au moins le nom du client et la marque !");
       return;
     }
-    const finalReparation = form.reparation === "Autre (écrire)" || form.reparation === "Other (write)" ? (form.reparationCustom || "Autre") : form.reparation;
+    const finalReparation = form.reparation === "Autre (écrire)" ? (form.reparationCustom || "Autre") : form.reparation;
     const newRepair = {
-    user_id: session.user.id,
-    ...
+      user_id: userId,
       ticket: form.ticket,
       client: form.client,
       tel: form.tel,
@@ -149,19 +147,15 @@ async function handleSubmit() {
       date_returned: form.date_returned,
       notes: form.notes,
     };
-    const { data, error } = await supabase.from("repairs").insert([newRepair]).select();
-    if (error) {
-      alert("Erreur: " + error.message);
-      return;
-    }
+    const { error } = await supabase.from("repairs").insert([newRepair]);
+    if (error) { alert("Erreur: " + error.message); return; }
     await loadRepairs();
     setView("list");
     setForm({ ticket: "", client: "", tel: "", marque: "", modele: "", reparation: REPARATIONS[0], reparationCustom: "", statut: "Reçue", prix: "", date: "", date_returned: "", notes: "" });
   }
 
   async function updateField(id, field, value) {
-    const { error } = await supabase.from("repairs").update({ [field]: value }).eq("id", id);
-    if (error) console.error("Erreur update:", error);
+    await supabase.from("repairs").update({ [field]: value }).eq("id", id);
     setRepairs(repairs.map(r => r.id === id ? { ...r, [field]: value } : r));
     if (selected?.id === id) setSelected({ ...selected, [field]: value });
   }
@@ -175,12 +169,12 @@ async function handleSubmit() {
 
   function saveAtelier(newAtelier) {
     setAtelier(newAtelier);
-    localStorage.setItem(`atelier_${session.user.id}`, JSON.stringify(newAtelier));
+    localStorage.setItem(`atelier_${userId}`, JSON.stringify(newAtelier));
   }
 
   function downloadExcel() {
-    let csv = "N° Ticket,Nom Client,Téléphone,Marque,Modèle,Type de réparation,Statut,Prix,Date de dépôt,Date de rendu,Notes\n";
-    repairs.forEach(r => { csv += `"${r.ticket || ''}","${r.client}","${r.tel}","${r.marque}","${r.modele}","${r.reparation}","${r.statut}","${r.prix}","${formatDate(r.date)}","${formatDate(r.date_returned)}","${r.notes || ''}"\n`; });
+    let csv = "N° Ticket,Nom Client,Téléphone,Marque,Modèle,Réparation,Statut,Prix,Date dépôt,Date rendu,Notes\n";
+    repairs.forEach(r => { csv += `"${r.ticket||''}","${r.client}","${r.tel}","${r.marque}","${r.modele}","${r.reparation}","${r.statut}","${r.prix}","${formatDate(r.date)}","${formatDate(r.date_returned)}","${r.notes||''}"\n`; });
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
@@ -195,87 +189,86 @@ async function handleSubmit() {
     function drawTicket(startY, titre) {
       doc.setFillColor(74, 124, 89); doc.rect(0, startY, pageW, 12, 'F');
       doc.setTextColor(255, 255, 255); doc.setFontSize(13); doc.setFont("helvetica", "bold");
-      doc.text("BON DE DEPOT — WatchTrack MontrePro", pageW / 2, startY + 8, { align: "center" });
-      doc.setFillColor(244, 228, 166); doc.rect(0, startY + 12, pageW, 8, 'F');
-      doc.setTextColor(45, 62, 45); doc.setFontSize(9); doc.setFont("helvetica", "bold");
-      doc.text(titre, pageW / 2, startY + 18, { align: "center" });
-      doc.setFont("helvetica", "bold"); doc.setTextColor(74, 124, 89);
-      doc.text("TICKET", 10, startY + 28); doc.text("CLIENT", pageW / 2, startY + 28);
-      doc.setFont("helvetica", "normal"); doc.setTextColor(0, 0, 0);
-      doc.text(`N° : ${r.ticket || "—"}`, 10, startY + 34);
-      doc.text(`${r.client}`, pageW / 2, startY + 34);
-      doc.text(`Tél : ${r.tel || "—"}`, pageW / 2, startY + 40);
-      doc.setDrawColor(200, 200, 200); doc.line(10, startY + 44, pageW - 10, startY + 44);
-      doc.setFont("helvetica", "bold"); doc.setTextColor(74, 124, 89);
-      doc.text("MONTRE", 10, startY + 50); doc.text("DATES & PRIX", pageW / 2, startY + 50);
-      doc.setFont("helvetica", "normal"); doc.setTextColor(0, 0, 0);
-      doc.text(`${r.marque} ${r.modele || ""}`, 10, startY + 56);
-      doc.text(`Réparation : ${r.reparation}`, 10, startY + 62);
-      doc.text(`Dépôt : ${formatDate(r.date)}`, pageW / 2, startY + 56);
-      doc.text(`Rendu prévu : ${formatDate(r.date_returned)}`, pageW / 2, startY + 62);
-      doc.text(`Prix estimé : ${r.prix || "À définir"}`, pageW / 2, startY + 68);
+      doc.text("BON DE DEPOT — WatchTrack MontrePro", pageW/2, startY+8, {align:"center"});
+      doc.setFillColor(244, 228, 166); doc.rect(0, startY+12, pageW, 8, 'F');
+      doc.setTextColor(45,62,45); doc.setFontSize(9);
+      doc.text(titre, pageW/2, startY+18, {align:"center"});
+      doc.setFont("helvetica","bold"); doc.setTextColor(74,124,89);
+      doc.text("TICKET", 10, startY+28); doc.text("CLIENT", pageW/2, startY+28);
+      doc.setFont("helvetica","normal"); doc.setTextColor(0,0,0);
+      doc.text(`N° : ${r.ticket||"—"}`, 10, startY+34);
+      doc.text(`${r.client}`, pageW/2, startY+34);
+      doc.text(`Tél : ${r.tel||"—"}`, pageW/2, startY+40);
+      doc.setDrawColor(200,200,200); doc.line(10, startY+44, pageW-10, startY+44);
+      doc.setFont("helvetica","bold"); doc.setTextColor(74,124,89);
+      doc.text("MONTRE", 10, startY+50); doc.text("DATES & PRIX", pageW/2, startY+50);
+      doc.setFont("helvetica","normal"); doc.setTextColor(0,0,0);
+      doc.text(`${r.marque} ${r.modele||""}`, 10, startY+56);
+      doc.text(`Réparation : ${r.reparation}`, 10, startY+62);
+      doc.text(`Dépôt : ${formatDate(r.date)}`, pageW/2, startY+56);
+      doc.text(`Rendu : ${formatDate(r.date_returned)}`, pageW/2, startY+62);
+      doc.text(`Prix : ${r.prix||"À définir"}`, pageW/2, startY+68);
       if (r.notes) {
-        doc.line(10, startY + 72, pageW - 10, startY + 72);
-        doc.setFont("helvetica", "bold"); doc.setTextColor(74, 124, 89); doc.text("NOTES :", 10, startY + 78);
-        doc.setFont("helvetica", "italic"); doc.setTextColor(0, 0, 0);
-        doc.text(doc.splitTextToSize(r.notes, pageW - 20), 10, startY + 84);
+        doc.line(10, startY+72, pageW-10, startY+72);
+        doc.setFont("helvetica","bold"); doc.setTextColor(74,124,89); doc.text("NOTES :", 10, startY+78);
+        doc.setFont("helvetica","italic"); doc.setTextColor(0,0,0);
+        doc.text(doc.splitTextToSize(r.notes, pageW-20), 10, startY+84);
       }
-      doc.setDrawColor(200, 200, 200); doc.setLineDash([2, 2]); doc.rect(10, startY + 90, 80, 30); doc.setLineDash([]);
-      doc.setFontSize(7); doc.setTextColor(150, 150, 150); doc.text("Tampon atelier", 50, startY + 108, { align: "center" });
-      doc.setFontSize(8); doc.setTextColor(100, 100, 100); doc.text("Signature client :", pageW / 2 + 5, startY + 95);
-      doc.setDrawColor(100, 100, 100); doc.line(pageW / 2 + 5, startY + 112, pageW - 10, startY + 112);
+      doc.setDrawColor(200,200,200); doc.setLineDash([2,2]); doc.rect(10, startY+90, 80, 30); doc.setLineDash([]);
+      doc.setFontSize(7); doc.setTextColor(150,150,150); doc.text("Tampon atelier", 50, startY+108, {align:"center"});
+      doc.setFontSize(8); doc.setTextColor(100,100,100); doc.text("Signature client :", pageW/2+5, startY+95);
+      doc.setDrawColor(100,100,100); doc.line(pageW/2+5, startY+112, pageW-10, startY+112);
     }
     drawTicket(5, "✂  EXEMPLAIRE CLIENT");
-    doc.setDrawColor(150, 150, 150); doc.setLineDash([4, 3]); doc.line(5, pageH / 2, pageW - 5, pageH / 2); doc.setLineDash([]);
-    doc.setFontSize(8); doc.setTextColor(150, 150, 150); doc.text("✂  Découper ici", pageW / 2, pageH / 2 - 2, { align: "center" });
-    drawTicket(pageH / 2 + 5, "✂  EXEMPLAIRE ATELIER");
-    doc.save(`BonDepot-${r.ticket || r.id}-${r.client.replace(/ /g, "_")}.pdf`);
+    doc.setDrawColor(150,150,150); doc.setLineDash([4,3]); doc.line(5, pageH/2, pageW-5, pageH/2); doc.setLineDash([]);
+    doc.setFontSize(8); doc.setTextColor(150,150,150); doc.text("✂  Découper ici", pageW/2, pageH/2-2, {align:"center"});
+    drawTicket(pageH/2+5, "✂  EXEMPLAIRE ATELIER");
+    doc.save(`BonDepot-${r.ticket||r.id}-${r.client.replace(/ /g,"_")}.pdf`);
   }
 
   function genererFacture(r) {
     const doc = new jsPDF();
     const pageW = doc.internal.pageSize.getWidth();
     const year = new Date().getFullYear();
-    const numFacture = `FAC-${year}-${String(nextFactureId).padStart(3, "0")}`;
-    doc.setFillColor(74, 124, 89); doc.rect(0, 0, pageW, 35, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFontSize(24); doc.setFont("helvetica", "bold");
-    doc.text("FACTURE", pageW / 2, 15, { align: "center" });
-    doc.setFontSize(11); doc.setFont("helvetica", "normal");
-    doc.text(`N° ${numFacture}`, pageW / 2, 26, { align: "center" });
-    doc.setTextColor(0, 0, 0); doc.setFontSize(11); doc.setFont("helvetica", "bold");
-    doc.text("PRESTATAIRE", 15, 48); doc.setFont("helvetica", "normal"); doc.setFontSize(10);
-    doc.text(atelier.nom || "Votre atelier", 15, 57);
+    const numFacture = `FAC-${year}-${String(nextFactureId).padStart(3,"0")}`;
+    doc.setFillColor(74,124,89); doc.rect(0,0,pageW,35,'F');
+    doc.setTextColor(255,255,255); doc.setFontSize(24); doc.setFont("helvetica","bold");
+    doc.text("FACTURE", pageW/2, 15, {align:"center"});
+    doc.setFontSize(11); doc.setFont("helvetica","normal");
+    doc.text(`N° ${numFacture}`, pageW/2, 26, {align:"center"});
+    doc.setTextColor(0,0,0); doc.setFontSize(11); doc.setFont("helvetica","bold");
+    doc.text("PRESTATAIRE", 15, 48); doc.setFont("helvetica","normal"); doc.setFontSize(10);
+    doc.text(atelier.nom||"Votre atelier", 15, 57);
     if (atelier.adresse) doc.text(atelier.adresse, 15, 64);
-    doc.text(`${atelier.codePostal || ""} ${atelier.ville || ""}`, 15, 71);
+    doc.text(`${atelier.codePostal||""} ${atelier.ville||""}`, 15, 71);
     if (atelier.siret) doc.text(`SIRET : ${atelier.siret}`, 15, 78);
     if (atelier.tel) doc.text(`Tél : ${atelier.tel}`, 15, 85);
     if (atelier.email) doc.text(`Email : ${atelier.email}`, 15, 92);
-    doc.setFillColor(244, 228, 166); doc.rect(110, 43, pageW - 120, 55, 'F');
-    doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.text("CLIENT", 115, 52);
-    doc.setFont("helvetica", "normal"); doc.setFontSize(10);
-    doc.text(r.client, 115, 61); doc.text(`Tél : ${r.tel || "—"}`, 115, 68);
+    doc.setFillColor(244,228,166); doc.rect(110,43,pageW-120,55,'F');
+    doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text("CLIENT", 115, 52);
+    doc.setFont("helvetica","normal"); doc.setFontSize(10);
+    doc.text(r.client, 115, 61); doc.text(`Tél : ${r.tel||"—"}`, 115, 68);
     doc.text(`Date : ${new Date().toLocaleDateString("fr-FR")}`, 115, 82);
-    doc.text(`Ticket N° : ${r.ticket || "—"}`, 115, 89);
-    doc.setFillColor(74, 124, 89); doc.rect(10, 108, pageW - 20, 10, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(10);
-    doc.text("Description", 15, 115); doc.text("Montant HT", 130, 115);
-    doc.text("TVA", 158, 115); doc.text("Total TTC", 175, 115);
-    doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "normal");
-    doc.setFillColor(249, 251, 247); doc.rect(10, 118, pageW - 20, 14, 'F');
-    const prixTTC = parseFloat(r.prix) || 0;
-    const prixHT = (prixTTC / 1.2).toFixed(2);
-    const tva = (prixTTC - parseFloat(prixHT)).toFixed(2);
+    doc.text(`Ticket N° : ${r.ticket||"—"}`, 115, 89);
+    doc.setFillColor(74,124,89); doc.rect(10,108,pageW-20,10,'F');
+    doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(10);
+    doc.text("Description", 15, 115); doc.text("HT", 130, 115); doc.text("TVA", 158, 115); doc.text("TTC", 175, 115);
+    doc.setTextColor(0,0,0); doc.setFont("helvetica","normal");
+    doc.setFillColor(249,251,247); doc.rect(10,118,pageW-20,14,'F');
+    const prixTTC = parseFloat(r.prix)||0;
+    const prixHT = (prixTTC/1.2).toFixed(2);
+    const tva = (prixTTC-parseFloat(prixHT)).toFixed(2);
     doc.text(doc.splitTextToSize(`${r.marque} ${r.modele} — ${r.reparation}`, 110), 15, 126);
-    doc.text(`${prixHT} €`, 130, 126); doc.text(`${tva} €`, 158, 126); doc.text(`${prixTTC.toFixed(2)} €`, 175, 126);
-    doc.setDrawColor(74, 124, 89); doc.line(10, 140, pageW - 10, 140);
-    doc.setFillColor(74, 124, 89); doc.rect(130, 143, pageW - 140, 8, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold");
-    doc.text("TOTAL TTC :", 133, 149); doc.text(`${prixTTC.toFixed(2)} €`, 175, 149);
-    doc.setFillColor(74, 124, 89); doc.rect(0, 285, pageW, 12, 'F');
-    doc.setFontSize(8); doc.setTextColor(255, 255, 255);
-    doc.text("WatchTrack MontrePro — Logiciel de gestion des réparations horlogères", pageW / 2, 293, { align: "center" });
-    doc.save(`Facture-${numFacture}-${r.client.replace(/ /g, "_")}.pdf`);
-    setNextFactureId(nextFactureId + 1);
+    doc.text(`${prixHT}€`, 130, 126); doc.text(`${tva}€`, 158, 126); doc.text(`${prixTTC.toFixed(2)}€`, 175, 126);
+    doc.setDrawColor(74,124,89); doc.line(10,140,pageW-10,140);
+    doc.setFillColor(74,124,89); doc.rect(130,143,pageW-140,8,'F');
+    doc.setTextColor(255,255,255); doc.setFont("helvetica","bold");
+    doc.text("TOTAL TTC :", 133, 149); doc.text(`${prixTTC.toFixed(2)}€`, 175, 149);
+    doc.setFillColor(74,124,89); doc.rect(0,285,pageW,12,'F');
+    doc.setFontSize(8); doc.setTextColor(255,255,255);
+    doc.text("WatchTrack MontrePro — Logiciel de gestion des réparations horlogères", pageW/2, 293, {align:"center"});
+    doc.save(`Facture-${numFacture}-${r.client.replace(/ /g,"_")}.pdf`);
+    setNextFactureId(nextFactureId+1);
   }
 
   const filtered = repairs.filter(r => {
@@ -292,7 +285,7 @@ async function handleSubmit() {
     enCours: repairs.filter(r => r.statut !== "Rendue").length,
     pretes: repairs.filter(r => r.statut === "Prête").length,
     attente: repairs.filter(r => r.statut === "En attente de pièce").length,
-    ca: repairs.filter(r => r.statut === "Rendue").reduce((s, r) => s + Number(r.prix || 0), 0),
+    ca: repairs.filter(r => r.statut === "Rendue").reduce((s,r) => s+Number(r.prix||0), 0),
   };
 
   const clientsMap = repairs.reduce((acc, r) => {
@@ -300,13 +293,13 @@ async function handleSubmit() {
     if (!key) return acc;
     if (!acc[key]) acc[key] = { nom: r.client, tel: r.tel, montres: [], totalDepense: 0, derniereVisite: r.date, marquesCount: {} };
     acc[key].montres.push(r);
-    acc[key].totalDepense += parseFloat(r.prix) || 0;
+    acc[key].totalDepense += parseFloat(r.prix)||0;
     if (r.date > acc[key].derniereVisite) acc[key].derniereVisite = r.date;
-    if (r.marque) acc[key].marquesCount[r.marque] = (acc[key].marquesCount[r.marque] || 0) + 1;
+    if (r.marque) acc[key].marquesCount[r.marque] = (acc[key].marquesCount[r.marque]||0)+1;
     return acc;
   }, {});
 
-  const clientsList = Object.values(clientsMap).sort((a, b) => b.montres.length - a.montres.length);
+  const clientsList = Object.values(clientsMap).sort((a,b) => b.montres.length-a.montres.length);
   const filteredClients = clientsList.filter(c => c.nom?.toLowerCase().includes(clientSearch.toLowerCase()) || c.tel?.includes(clientSearch));
 
   const S = {
@@ -323,20 +316,20 @@ async function handleSubmit() {
     table: { width: "100%", borderCollapse: "collapse" },
     th: { padding: "12px 20px", textAlign: "left", fontSize: 11, color: "#86868b", borderBottom: "1px solid rgba(0,0,0,0.06)", fontWeight: "600", background: "rgba(248,248,248,0.8)", letterSpacing: "0.05em", textTransform: "uppercase" },
     td: (zoom) => ({ padding: zoom ? "12px 20px" : "8px 20px", borderBottom: "1px solid rgba(0,0,0,0.08)", fontSize: zoom ? 14 : 12, color: "#1d1d1f", verticalAlign: "middle" }),
-    badge: (statut) => ({ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: "700", background: STATUT_COLORS[statut]?.bgLight, color: STATUT_COLORS[statut]?.accent || "#666", border: `2px solid ${STATUT_COLORS[statut]?.accent}` }),
-    btn: (variant = "primary") => ({ padding: "10px 20px", background: variant === "primary" ? "linear-gradient(135deg, #34C759 0%, #2E8B4A 100%)" : variant === "danger" ? "linear-gradient(135deg, #FF3B30 0%, #C0392B 100%)" : variant === "blue" ? "linear-gradient(135deg, #007AFF 0%, #0051D5 100%)" : variant === "purple" ? "linear-gradient(135deg, #AF52DE 0%, #8B3DB8 100%)" : "rgba(0,0,0,0.06)", color: variant === "secondary" ? "#1d1d1f" : "white", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 13, fontWeight: "600", fontFamily: "inherit", transition: "all 0.2s ease", boxShadow: variant !== "secondary" ? "0 4px 12px rgba(0,0,0,0.15)" : "none" }),
+    badge: (statut) => ({ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: "700", background: STATUT_COLORS[statut]?.bgLight, color: STATUT_COLORS[statut]?.accent||"#666", border: `2px solid ${STATUT_COLORS[statut]?.accent}` }),
+    btn: (variant="primary") => ({ padding: "10px 20px", background: variant==="primary" ? "linear-gradient(135deg, #34C759 0%, #2E8B4A 100%)" : variant==="danger" ? "linear-gradient(135deg, #FF3B30 0%, #C0392B 100%)" : variant==="blue" ? "linear-gradient(135deg, #007AFF 0%, #0051D5 100%)" : variant==="purple" ? "linear-gradient(135deg, #AF52DE 0%, #8B3DB8 100%)" : "rgba(0,0,0,0.06)", color: variant==="secondary" ? "#1d1d1f" : "white", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 13, fontWeight: "600", fontFamily: "inherit", transition: "all 0.2s ease", boxShadow: variant!=="secondary" ? "0 4px 12px rgba(0,0,0,0.15)" : "none" }),
     input: { width: "100%", background: "rgba(118,118,128,0.08)", border: "1.5px solid transparent", borderRadius: 12, padding: "12px 16px", color: "#1d1d1f", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", outline: "none" },
     label: { fontSize: 12, color: "#86868b", marginBottom: 8, display: "block", fontWeight: "600" },
     formGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 },
     statCard: { background: "rgba(255,255,255,0.9)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.8)", borderRadius: 20, padding: "24px", position: "relative", overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.06)" },
-    rowColored: (statut) => ({ background: STATUT_COLORS[statut]?.rowBg || "white" }),
+    rowColored: (statut) => ({ background: STATUT_COLORS[statut]?.rowBg||"white" }),
     alertBadge: { display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 8, fontSize: 10, fontWeight: "700", background: "#FF3B3015", color: "#FF3B30", marginLeft: 8 },
     sectionTitle: { fontSize: 22, fontWeight: "700", color: "#1d1d1f", marginBottom: 4, letterSpacing: "-0.5px" },
     sectionSub: { fontSize: 13, color: "#86868b", marginBottom: 24 },
     divider: { height: 1, background: "rgba(0,0,0,0.06)", margin: "24px 0" },
     inlineInput: { background: "rgba(118,118,128,0.06)", border: "1px solid transparent", borderRadius: 8, padding: "5px 10px", color: "#1d1d1f", fontSize: 12, fontFamily: "inherit", outline: "none", width: "100%" },
     dateInput: { background: "rgba(118,118,128,0.08)", border: "none", borderRadius: 8, padding: "5px 10px", color: "#1d1d1f", fontSize: 12, fontFamily: "inherit", outline: "none", cursor: "pointer" },
-    noteDisplay: { fontSize: 11, color: "#555", fontStyle: "italic", padding: "6px 8px", background: "rgba(0,0,0,0.04)", borderRadius: 6, minHeight: 28, cursor: "pointer" },
+    noteDisplay: { fontSize: 11, color: "#555", fontStyle: "italic", padding: "6px 8px", background: "rgba(0,0,0,0.04)", borderRadius: 6, minHeight: 28 },
     deleteBtn: { padding: "6px 12px", background: "rgba(255,59,48,0.1)", color: "#FF3B30", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: "700", fontFamily: "inherit" },
     overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(10px)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" },
     modal: { background: "rgba(255,255,255,0.98)", backdropFilter: "blur(20px)", borderRadius: 24, padding: 36, maxWidth: 420, width: "90%", textAlign: "center", boxShadow: "0 32px 80px rgba(0,0,0,0.2)" },
@@ -407,12 +400,11 @@ async function handleSubmit() {
           </div>
         )}
 
-        {/* ATELIER */}
         {!loading && view === "atelier" && (
           <>
             <div style={{ marginBottom: 28 }}>
               <div style={S.sectionTitle}>⚙️ Mon Atelier</div>
-              <div style={S.sectionSub}>Ces informations apparaîtront sur vos factures et bons de dépôt</div>
+              <div style={S.sectionSub}>Ces informations apparaîtront sur vos factures</div>
             </div>
             <div style={{ ...S.card, padding: 32, maxWidth: 700 }}>
               <div style={S.formGrid}>
@@ -427,7 +419,7 @@ async function handleSubmit() {
                 ].map(f => (
                   <div key={f.key}>
                     <label style={S.label}>{f.label}</label>
-                    <input style={S.input} placeholder={f.placeholder} value={atelier[f.key] || ""} onChange={e => saveAtelier({ ...atelier, [f.key]: e.target.value })} />
+                    <input style={S.input} placeholder={f.placeholder} value={atelier[f.key]||""} onChange={e => saveAtelier({ ...atelier, [f.key]: e.target.value })} />
                   </div>
                 ))}
               </div>
@@ -438,7 +430,6 @@ async function handleSubmit() {
           </>
         )}
 
-        {/* CLIENTS */}
         {!loading && view === "clients" && !selectedClient && (
           <>
             <div style={{ marginBottom: 28 }}>
@@ -452,7 +443,7 @@ async function handleSubmit() {
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
                     <div>
                       <div style={{ fontSize: 16, fontWeight: "700" }}>{c.nom}{c.montres.length >= 3 && <span style={{ marginLeft: 8, fontSize: 11, background: "linear-gradient(135deg, #FFD700, #FFA500)", color: "white", padding: "2px 8px", borderRadius: 8 }}>🏆</span>}</div>
-                      <div style={{ fontSize: 13, color: "#86868b" }}>📞 {c.tel || "—"}</div>
+                      <div style={{ fontSize: 13, color: "#86868b" }}>📞 {c.tel||"—"}</div>
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <div style={{ fontSize: 18, fontWeight: "700", color: "#1A6E35" }}>{c.totalDepense.toFixed(0)}€</div>
@@ -469,7 +460,6 @@ async function handleSubmit() {
           </>
         )}
 
-        {/* FICHE CLIENT */}
         {!loading && view === "clients" && selectedClient && (
           <>
             <div style={{ marginBottom: 24, display: "flex", alignItems: "center", gap: 16 }}>
@@ -479,16 +469,16 @@ async function handleSubmit() {
             <div style={S.card}>
               <div style={S.cardHeader}><span style={S.cardTitle}>Historique</span></div>
               <table style={S.table}>
-                <thead><tr>{["Ticket", "Montre", "Réparation", "Date", "Statut", "Prix"].map((h, i) => <th key={i} style={S.th}>{h}</th>)}</tr></thead>
+                <thead><tr>{["Ticket","Montre","Réparation","Date","Statut","Prix"].map((h,i) => <th key={i} style={S.th}>{h}</th>)}</tr></thead>
                 <tbody>
                   {selectedClient.montres.map(r => (
                     <tr key={r.id} style={{ ...S.rowColored(r.statut), cursor: "pointer" }} onClick={() => { setSelected(r); setView("detail"); }}>
-                      <td style={S.td(false)}><span style={{ color: "#B84A00", fontWeight: "700" }}>{r.ticket || "—"}</span></td>
+                      <td style={S.td(false)}><span style={{ color: "#B84A00", fontWeight: "700" }}>{r.ticket||"—"}</span></td>
                       <td style={{ ...S.td(false), fontWeight: "600" }}>{r.marque} {r.modele}</td>
                       <td style={{ ...S.td(false), color: "#555" }}>{r.reparation}</td>
                       <td style={{ ...S.td(false), color: "#86868b" }}>{formatDate(r.date)}</td>
                       <td style={S.td(false)}><span style={S.badge(r.statut)}>{r.statut}</span></td>
-                      <td style={{ ...S.td(false), fontWeight: "700", color: "#1A6E35" }}>{r.prix ? r.prix + " €" : "—"}</td>
+                      <td style={{ ...S.td(false), fontWeight: "700", color: "#1A6E35" }}>{r.prix ? r.prix+"€" : "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -497,7 +487,6 @@ async function handleSubmit() {
           </>
         )}
 
-        {/* DASHBOARD */}
         {!loading && view === "dashboard" && (
           <>
             <div style={{ marginBottom: 28 }}>
@@ -510,8 +499,8 @@ async function handleSubmit() {
                 { label: "Prêtes", val: stats.pretes, accent: "#1A6E35", icon: "✅" },
                 { label: "Attente pièce", val: stats.attente, accent: "#A07800", icon: "⏳" },
                 { label: "Total fiches", val: stats.total, accent: "#6B1E9E", icon: "📋" },
-                { label: "CA encaissé", val: stats.ca + " €", accent: "#B84A00", icon: "💰" },
-              ].map((s, i) => (
+                { label: "CA encaissé", val: stats.ca+"€", accent: "#B84A00", icon: "💰" },
+              ].map((s,i) => (
                 <div key={i} style={S.statCard}>
                   <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: s.accent, borderRadius: "20px 20px 0 0" }} />
                   <div style={{ width: 44, height: 44, background: `${s.accent}18`, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, marginBottom: 12 }}>{s.icon}</div>
@@ -543,15 +532,15 @@ async function handleSubmit() {
                 <button style={S.btn("secondary")} onClick={() => setView("list")}>Voir tout →</button>
               </div>
               <table style={S.table}>
-                <thead><tr>{["Ticket", "Client", "Montre", "Statut", "Prix"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                <thead><tr>{["Ticket","Client","Montre","Statut","Prix"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
                 <tbody>
-                  {repairs.slice(0, 5).map(r => (
+                  {repairs.slice(0,5).map(r => (
                     <tr key={r.id} style={{ cursor: "pointer", ...S.rowColored(r.statut) }} onClick={() => { setSelected(r); setView("detail"); }}>
-                      <td style={S.td(false)}><span style={{ color: "#B84A00", fontWeight: "700" }}>{r.ticket || "—"}</span></td>
+                      <td style={S.td(false)}><span style={{ color: "#B84A00", fontWeight: "700" }}>{r.ticket||"—"}</span></td>
                       <td style={S.td(false)}><div style={{ fontWeight: "600" }}>{r.client}</div><div style={{ fontSize: 11, color: "#86868b" }}>{r.tel}</div></td>
                       <td style={{ ...S.td(false), fontWeight: "600" }}>{r.marque} {r.modele}</td>
                       <td style={S.td(false)}><span style={S.badge(r.statut)}>{r.statut}</span></td>
-                      <td style={{ ...S.td(false), fontWeight: "700", color: "#1A6E35" }}>{r.prix ? r.prix + " €" : "—"}</td>
+                      <td style={{ ...S.td(false), fontWeight: "700", color: "#1A6E35" }}>{r.prix ? r.prix+"€" : "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -560,7 +549,6 @@ async function handleSubmit() {
           </>
         )}
 
-        {/* LISTE */}
         {!loading && view === "list" && (
           <>
             <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
@@ -577,7 +565,7 @@ async function handleSubmit() {
               <input style={{ ...S.input, maxWidth: 300 }} placeholder="🔍 Rechercher..." value={search} onChange={e => setSearch(e.target.value)} />
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {["Tous", ...STATUTS].map(s => (
-                  <button key={s} style={{ padding: "7px 14px", borderRadius: 10, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: "700", border: `2px solid ${filterStatut === s ? (STATUT_COLORS[s]?.accent || "#2E8B4A") : "rgba(0,0,0,0.1)"}`, background: filterStatut === s ? (STATUT_COLORS[s]?.rowBg || "#EDF8F1") : "rgba(255,255,255,0.8)", color: filterStatut === s ? (STATUT_COLORS[s]?.accent || "#2E8B4A") : "#86868b" }}
+                  <button key={s} style={{ padding: "7px 14px", borderRadius: 10, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: "700", border: `2px solid ${filterStatut===s ? (STATUT_COLORS[s]?.accent||"#2E8B4A") : "rgba(0,0,0,0.1)"}`, background: filterStatut===s ? (STATUT_COLORS[s]?.rowBg||"#EDF8F1") : "rgba(255,255,255,0.8)", color: filterStatut===s ? (STATUT_COLORS[s]?.accent||"#2E8B4A") : "#86868b" }}
                     onClick={() => setFilterStatut(s)}>{s}</button>
                 ))}
               </div>
@@ -586,7 +574,7 @@ async function handleSubmit() {
               <div style={{ overflowX: "auto" }}>
                 <table style={S.table}>
                   <thead>
-                    <tr>{["Ticket", "Client", "Montre", "Réparation", "Notes", "Date", "Rendu", "Statut", "Prix", ""].map((h, i) => <th key={i} style={S.th}>{h}</th>)}</tr>
+                    <tr>{["Ticket","Client","Montre","Réparation","Notes","Date","Rendu","Statut","Prix",""].map((h,i) => <th key={i} style={S.th}>{h}</th>)}</tr>
                   </thead>
                   <tbody>
                     {filtered.length === 0 && (
@@ -596,7 +584,7 @@ async function handleSubmit() {
                     )}
                     {filtered.map(r => (
                       <tr key={r.id} style={S.rowColored(r.statut)}>
-                        <td style={S.td(zoomTable)}><input type="text" style={{ ...S.inlineInput, color: "#B84A00", fontWeight: "700", width: "70px" }} value={r.ticket || ""} onChange={e => updateField(r.id, "ticket", e.target.value)} /></td>
+                        <td style={S.td(zoomTable)}><input type="text" style={{ ...S.inlineInput, color: "#B84A00", fontWeight: "700", width: "70px" }} value={r.ticket||""} onChange={e => updateField(r.id, "ticket", e.target.value)} /></td>
                         <td style={{ ...S.td(zoomTable), cursor: "pointer" }} onClick={() => { setSelected(r); setView("detail"); }}>
                           <div style={{ fontWeight: "600" }}>{r.client}{isOld(r.date, r.statut) && <span style={S.alertBadge}>⏱ {daysSince(r.date)}j</span>}</div>
                           <div style={{ fontSize: 11, color: "#86868b" }}>{r.tel}</div>
@@ -604,12 +592,12 @@ async function handleSubmit() {
                         <td style={{ ...S.td(zoomTable), cursor: "pointer" }} onClick={() => { setSelected(r); setView("detail"); }}>{r.marque} {r.modele}</td>
                         <td style={{ ...S.td(zoomTable), color: "#555", cursor: "pointer" }} onClick={() => { setSelected(r); setView("detail"); }}>{r.reparation}</td>
                         <td style={{ ...S.td(zoomTable), cursor: "pointer" }} onClick={() => { setSelected(r); setView("detail"); }}>
-                          <div style={S.noteDisplay}>{r.notes || <span style={{ color: "#ccc" }}>—</span>}</div>
+                          <div style={S.noteDisplay}>{r.notes||<span style={{ color: "#ccc" }}>—</span>}</div>
                         </td>
                         <td style={{ ...S.td(zoomTable), color: "#86868b" }}>{formatDate(r.date)}</td>
-                        <td style={S.td(zoomTable)}><input type="date" style={S.dateInput} value={r.date_returned || ""} onChange={e => updateField(r.id, "date_returned", e.target.value)} /></td>
+                        <td style={S.td(zoomTable)}><input type="date" style={S.dateInput} value={r.date_returned||""} onChange={e => updateField(r.id, "date_returned", e.target.value)} /></td>
                         <td style={{ ...S.td(zoomTable), cursor: "pointer" }} onClick={() => { setSelected(r); setView("detail"); }}><span style={S.badge(r.statut)}>{r.statut}</span></td>
-                        <td style={S.td(zoomTable)}><input type="text" style={{ ...S.inlineInput, color: "#1A6E35", fontWeight: "700", width: "70px" }} value={r.prix || ""} onChange={e => updateField(r.id, "prix", e.target.value)} /></td>
+                        <td style={S.td(zoomTable)}><input type="text" style={{ ...S.inlineInput, color: "#1A6E35", fontWeight: "700", width: "70px" }} value={r.prix||""} onChange={e => updateField(r.id, "prix", e.target.value)} /></td>
                         <td style={S.td(zoomTable)}><button style={S.deleteBtn} onClick={() => setConfirmDelete(r)}>🗑️</button></td>
                       </tr>
                     ))}
@@ -620,7 +608,6 @@ async function handleSubmit() {
           </>
         )}
 
-        {/* FORMULAIRE */}
         {!loading && view === "form" && (
           <>
             <div style={{ marginBottom: 28, display: "flex", alignItems: "center", gap: 16 }}>
@@ -637,7 +624,6 @@ async function handleSubmit() {
               </div>
               <div style={S.divider} />
               <div style={{ marginBottom: 24 }}>
-                <p style={{ fontSize: 11, color: "#86868b", fontWeight: "700", textTransform: "uppercase", marginBottom: 16 }}>Client</p>
                 <div style={S.formGrid}>
                   <div><label style={S.label}>Nom *</label><input style={S.input} placeholder="Jean Dupont" value={form.client} onChange={e => setForm({ ...form, client: e.target.value })} /></div>
                   <div><label style={S.label}>Téléphone</label><input style={S.input} placeholder="06 00 00 00 00" value={form.tel} onChange={e => setForm({ ...form, tel: e.target.value })} /></div>
@@ -645,7 +631,6 @@ async function handleSubmit() {
               </div>
               <div style={S.divider} />
               <div style={{ marginBottom: 24 }}>
-                <p style={{ fontSize: 11, color: "#86868b", fontWeight: "700", textTransform: "uppercase", marginBottom: 16 }}>La Montre</p>
                 <div style={S.formGrid}>
                   <div><label style={S.label}>Marque *</label><input style={S.input} placeholder="Rolex, Seiko..." value={form.marque} onChange={e => setForm({ ...form, marque: e.target.value })} /></div>
                   <div><label style={S.label}>Modèle</label><input style={S.input} placeholder="Submariner..." value={form.modele} onChange={e => setForm({ ...form, modele: e.target.value })} /></div>
@@ -653,15 +638,14 @@ async function handleSubmit() {
               </div>
               <div style={S.divider} />
               <div style={{ marginBottom: 24 }}>
-                <p style={{ fontSize: 11, color: "#86868b", fontWeight: "700", textTransform: "uppercase", marginBottom: 16 }}>Réparation</p>
                 <div style={S.formGrid}>
                   <div>
-                    <label style={S.label}>Type</label>
+                    <label style={S.label}>Type de réparation</label>
                     <select style={{ ...S.input, cursor: "pointer" }} value={form.reparation} onChange={e => setForm({ ...form, reparation: e.target.value })}>
                       {REPARATIONS.map(r => <option key={r} value={r}>{r}</option>)}
                     </select>
                   </div>
-                  <div><label style={S.label}>Prix estimé</label><input style={S.input} placeholder="45 €" value={form.prix} onChange={e => setForm({ ...form, prix: e.target.value })} /></div>
+                  <div><label style={S.label}>Prix estimé</label><input style={S.input} placeholder="45€" value={form.prix} onChange={e => setForm({ ...form, prix: e.target.value })} /></div>
                 </div>
                 <div style={{ ...S.formGrid, marginTop: 16 }}>
                   <div><label style={S.label}>Date de dépôt</label><input style={S.input} type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} /></div>
@@ -686,7 +670,6 @@ async function handleSubmit() {
           </>
         )}
 
-        {/* DETAIL */}
         {!loading && view === "detail" && selected && (
           <>
             <div style={{ marginBottom: 24, display: "flex", alignItems: "center", gap: 16, justifyContent: "space-between" }}>
@@ -709,12 +692,12 @@ async function handleSubmit() {
                 <div style={S.cardHeader}><span style={S.cardTitle}>Informations</span></div>
                 <div style={{ padding: "0 24px" }}>
                   {[
-                    { label: "N° Ticket", content: <input type="text" style={{ ...S.inlineInput, color: "#B84A00", fontWeight: "700", width: "150px" }} value={selected.ticket || ""} onChange={e => updateField(selected.id, "ticket", e.target.value)} /> },
+                    { label: "N° Ticket", content: <input type="text" style={{ ...S.inlineInput, color: "#B84A00", fontWeight: "700", width: "150px" }} value={selected.ticket||""} onChange={e => updateField(selected.id, "ticket", e.target.value)} /> },
                     { label: "Client", content: <span style={S.detailVal}>{selected.client}</span> },
-                    { label: "Téléphone", content: <span style={S.detailVal}>{selected.tel || "—"}</span> },
+                    { label: "Téléphone", content: <span style={S.detailVal}>{selected.tel||"—"}</span> },
                     { label: "Date de dépôt", content: <span style={S.detailVal}>{formatDate(selected.date)}</span> },
-                    { label: "Prix", content: <input type="text" style={{ ...S.inlineInput, color: "#1A6E35", fontWeight: "700", width: "150px" }} value={selected.prix || ""} onChange={e => updateField(selected.id, "prix", e.target.value)} /> },
-                    { label: "Date de rendu", content: <input type="date" style={S.dateInput} value={selected.date_returned || ""} onChange={e => updateField(selected.id, "date_returned", e.target.value)} /> },
+                    { label: "Prix", content: <input type="text" style={{ ...S.inlineInput, color: "#1A6E35", fontWeight: "700", width: "150px" }} value={selected.prix||""} onChange={e => updateField(selected.id, "prix", e.target.value)} /> },
+                    { label: "Date de rendu", content: <input type="date" style={S.dateInput} value={selected.date_returned||""} onChange={e => updateField(selected.id, "date_returned", e.target.value)} /> },
                   ].map((row, i) => (
                     <div key={i} style={S.detailRow}>
                       <span style={S.detailLabel}>{row.label}</span>
@@ -723,7 +706,7 @@ async function handleSubmit() {
                   ))}
                   <div style={{ padding: "14px 0" }}>
                     <div style={{ ...S.detailLabel, marginBottom: 8 }}>Notes</div>
-                    <textarea style={{ ...S.input, minHeight: 80, resize: "vertical", fontStyle: "italic" }} value={selected.notes || ""} onChange={e => updateField(selected.id, "notes", e.target.value)} />
+                    <textarea style={{ ...S.input, minHeight: 80, resize: "vertical", fontStyle: "italic" }} value={selected.notes||""} onChange={e => updateField(selected.id, "notes", e.target.value)} />
                   </div>
                 </div>
               </div>
@@ -732,14 +715,14 @@ async function handleSubmit() {
                 <div style={{ padding: 24 }}>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {STATUTS_BOUTONS.map(s => (
-                      <button key={s} style={S.statusBtn(selected.statut === s, s)} onClick={() => updateField(selected.id, "statut", s)}>{s}</button>
+                      <button key={s} style={S.statusBtn(selected.statut===s, s)} onClick={() => updateField(selected.id, "statut", s)}>{s}</button>
                     ))}
                   </div>
                   {selected.statut === "Prête" && (
                     <div style={{ marginTop: 20, padding: 16, background: "#A8EFC0", border: "2px solid #1A6E35", borderRadius: 14 }}>
                       <div style={{ color: "#1A6E35", fontWeight: "700" }}>✅ Prête à rendre !</div>
                       <div style={{ fontSize: 12, color: "#1A6E35" }}>Appelez : {selected.tel}</div>
-                      {selected.prix && <div style={{ fontSize: 15, color: "#1A6E35", fontWeight: "700" }}>💰 {selected.prix} €</div>}
+                      {selected.prix && <div style={{ fontSize: 15, color: "#1A6E35", fontWeight: "700" }}>💰 {selected.prix}€</div>}
                     </div>
                   )}
                 </div>
