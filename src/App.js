@@ -114,12 +114,15 @@ useEffect(() => { loadRepairs(); loadAtelier(); }, []);
 
 async function loadRepairs() {
     setLoading(true);
-    const { data, error } = await supabase.from("repairs").select("*").eq("user_id", session.user.id).order("id", { ascending: false });
+    const { data, error } = await supabase
+      .from("repairs")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .order("id", { ascending: false });
     if (error) console.error("Erreur chargement:", error);
     if (!error) setRepairs(data || []);
     setLoading(false);
   }
-
   async function loadAtelier() {
     const saved = localStorage.getItem(`atelier_${session.user.id}`);
     if (saved) setAtelier(JSON.parse(saved));
@@ -132,7 +135,8 @@ async function handleSubmit() {
     }
     const finalReparation = form.reparation === "Autre (écrire)" || form.reparation === "Other (write)" ? (form.reparationCustom || "Autre") : form.reparation;
     const newRepair = {
-      user_id: session.user.id,
+    user_id: session.user.id,
+    ...
       ticket: form.ticket,
       client: form.client,
       tel: form.tel,
