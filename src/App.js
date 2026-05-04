@@ -112,9 +112,9 @@ function MainApp({ session }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
 useEffect(() => { loadRepairs(); loadAtelier(); }, []);
 
-  async function loadRepairs() {
+async function loadRepairs() {
     setLoading(true);
-    const { data, error } = await supabase.from("repairs").select("*").order("id", { ascending: false });
+    const { data, error } = await supabase.from("repairs").select("*").eq("user_id", session.user.id).order("id", { ascending: false });
     if (error) console.error("Erreur chargement:", error);
     if (!error) setRepairs(data || []);
     setLoading(false);
@@ -125,13 +125,14 @@ useEffect(() => { loadRepairs(); loadAtelier(); }, []);
     if (saved) setAtelier(JSON.parse(saved));
   }
 
-  async function handleSubmit() {
+async function handleSubmit() {
     if (!form.client || !form.marque) {
       alert("Veuillez remplir au moins le nom du client et la marque !");
       return;
     }
-    const finalReparation = form.reparation === "Autre (écrire)" ? (form.reparationCustom || "Autre") : form.reparation;
+    const finalReparation = form.reparation === "Autre (écrire)" || form.reparation === "Other (write)" ? (form.reparationCustom || "Autre") : form.reparation;
     const newRepair = {
+      user_id: session.user.id,
       ticket: form.ticket,
       client: form.client,
       tel: form.tel,
@@ -144,9 +145,7 @@ useEffect(() => { loadRepairs(); loadAtelier(); }, []);
       date_returned: form.date_returned,
       notes: form.notes,
     };
-    console.log("Tentative insertion:", newRepair);
     const { data, error } = await supabase.from("repairs").insert([newRepair]).select();
-    console.log("Data:", data, "Error:", error);
     if (error) {
       alert("Erreur: " + error.message);
       return;
