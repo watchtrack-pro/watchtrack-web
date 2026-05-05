@@ -96,7 +96,7 @@ function LoginPage() {
 
 // ===== PAGE BLOCAGE =====
 function TrialExpiredPage({ session }) {
-  const daysLeft = 0;
+  
 
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
