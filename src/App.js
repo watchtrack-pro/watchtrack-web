@@ -36,6 +36,7 @@ function formatDate(dateStr) {
   return `${d}/${m}/${y}`;
 }
 
+// ===== PAGE DE CONNEXION =====
 function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -44,12 +45,14 @@ function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   async function handleAuth() {
-    setError("");
-    setLoading(true);
+    setError(""); setLoading(true);
     if (isSignUp) {
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) setError(error.message);
-      else setError("✅ Compte créé ! Connectez-vous !");
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) { setError(error.message); setLoading(false); return; }
+      if (data?.user) {
+        await supabase.from("subscriptions").insert([{ user_id: data.user.id, status: "trial", trial_start: new Date().toISOString() }]);
+        setError("✅ Compte créé ! 15 jours d'essai gratuit !");
+      }
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) setError("❌ Email ou mot de passe incorrect !");
@@ -63,7 +66,7 @@ function LoginPage() {
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{ width: 60, height: 60, background: "linear-gradient(135deg, #34C759, #2E8B4A)", borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, margin: "0 auto 16px" }}>⌚</div>
           <h1 style={{ fontSize: 24, fontWeight: "800", color: "#1d1d1f", marginBottom: 4 }}>WatchTrack MontrePro</h1>
-          <p style={{ color: "#86868b", fontSize: 14 }}>{isSignUp ? "Créer un compte" : "Connectez-vous à votre atelier"}</p>
+          <p style={{ color: "#86868b", fontSize: 14 }}>{isSignUp ? "Créer un compte — 15 jours gratuits !" : "Connectez-vous à votre atelier"}</p>
         </div>
         <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)}
           style={{ width: "100%", padding: "14px 16px", background: "rgba(118,118,128,0.08)", border: "none", borderRadius: 12, fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box", marginBottom: 12 }} />
@@ -73,20 +76,69 @@ function LoginPage() {
         {error && <p style={{ color: error.includes("✅") ? "#2E8B4A" : "#FF3B30", fontSize: 13, marginBottom: 16, textAlign: "center" }}>{error}</p>}
         <button onClick={handleAuth} disabled={loading}
           style={{ width: "100%", padding: "14px", background: "linear-gradient(135deg, #34C759, #2E8B4A)", color: "white", border: "none", borderRadius: 12, fontSize: 15, fontWeight: "700", fontFamily: "inherit", cursor: "pointer", marginBottom: 16 }}>
-          {loading ? "⏳" : isSignUp ? "Créer mon compte" : "Se connecter"}
+          {loading ? "⏳" : isSignUp ? "Créer mon compte — Gratuit 15 jours" : "Se connecter"}
         </button>
         <p style={{ textAlign: "center", fontSize: 13, color: "#86868b" }}>
           {isSignUp ? "Déjà un compte ? " : "Pas encore de compte ? "}
           <span onClick={() => { setIsSignUp(!isSignUp); setError(""); }} style={{ color: "#2E8B4A", cursor: "pointer", fontWeight: "600" }}>
-            {isSignUp ? "Se connecter" : "Créer un compte"}
+            {isSignUp ? "Se connecter" : "Créer un compte gratuit"}
           </span>
         </p>
+        {isSignUp && (
+          <div style={{ marginTop: 20, padding: 16, background: "rgba(52,199,89,0.08)", borderRadius: 12, border: "1px solid rgba(52,199,89,0.2)", textAlign: "center" }}>
+            <p style={{ fontSize: 12, color: "#2E8B4A", fontWeight: "600", margin: 0 }}>🎁 15 jours gratuits — Aucune carte bancaire requise !</p>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function MainApp({ session }) {
+// ===== PAGE BLOCAGE =====
+function TrialExpiredPage({ session }) {
+  const daysLeft = 0;
+
+  return (
+    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+      <div style={{ background: "rgba(255,255,255,0.97)", borderRadius: 28, padding: 48, maxWidth: 560, width: "90%", textAlign: "center", boxShadow: "0 40px 100px rgba(0,0,0,0.4)" }}>
+        <div style={{ width: 70, height: 70, background: "linear-gradient(135deg, #34C759, #2E8B4A)", borderRadius: 20, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, margin: "0 auto 20px" }}>⌚</div>
+        <h2 style={{ color: "#1d1d1f", fontSize: 22, marginBottom: 8, fontWeight: "700" }}>WatchTrack MontrePro</h2>
+        <p style={{ color: "#86868b", fontSize: 14, marginBottom: 28, lineHeight: 1.6 }}>
+          Votre période d'essai de 15 jours est terminée.<br />
+          Choisissez une formule pour continuer !
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 28 }}>
+          <a href="https://buy.stripe.com/00w14ncT29W28fD8o26g804" target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+            <div style={{ background: "linear-gradient(135deg, #f0f9f4, #e0f2e9)", borderRadius: 18, padding: 20, cursor: "pointer", border: "1.5px solid rgba(52,199,89,0.3)" }}>
+              <div style={{ fontSize: 28, marginBottom: 8 }}>🔄</div>
+              <div style={{ fontWeight: "700", fontSize: 22, color: "#1d1d1f" }}>19,90€</div>
+              <div style={{ fontSize: 12, color: "#2E8B4A", fontWeight: "600" }}>par mois</div>
+              <div style={{ fontSize: 11, color: "#86868b", marginTop: 4 }}>Résiliable à tout moment</div>
+            </div>
+          </a>
+          <a href="https://buy.stripe.com/7sY5kD06gb06eE1fQu6g807" target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+            <div style={{ background: "linear-gradient(135deg, #2E8B4A, #1a5c30)", borderRadius: 18, padding: 20, cursor: "pointer" }}>
+              <div style={{ fontSize: 28, marginBottom: 8 }}>💎</div>
+              <div style={{ fontWeight: "700", fontSize: 22, color: "white" }}>169€</div>
+              <div style={{ fontSize: 12, color: "#a8e6b8", fontWeight: "600" }}>à vie</div>
+              <div style={{ fontSize: 11, color: "#6fba82", marginTop: 4 }}>Paiement unique ✨</div>
+            </div>
+          </a>
+        </div>
+        <p style={{ color: "#86868b", fontSize: 13, marginBottom: 16 }}>
+          Vous avez déjà payé ? Contactez-nous :<br />
+          <a href="mailto:watchtrack-pro@outlook.com" style={{ color: "#2E8B4A", fontWeight: "600" }}>watchtrack-pro@outlook.com</a>
+        </p>
+        <button onClick={() => supabase.auth.signOut()} style={{ padding: "10px 24px", background: "rgba(0,0,0,0.06)", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 13, fontWeight: "600", fontFamily: "inherit", color: "#86868b" }}>
+          Se déconnecter
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ===== APPLICATION PRINCIPALE =====
+function MainApp({ session, subscription }) {
   const [repairs, setRepairs] = useState([]);
   const [view, setView] = useState("dashboard");
   const [selected, setSelected] = useState(null);
@@ -102,22 +154,19 @@ function MainApp({ session }) {
   const [atelier, setAtelier] = useState({ nom: "", adresse: "", codePostal: "", ville: "", siret: "", email: "", tel: "" });
   const [form, setForm] = useState({
     ticket: "", client: "", tel: "", marque: "", modele: "",
-    reparation: REPARATIONS[0], reparationCustom: "", statut: "Reçue", prix: "", date: "", date_returned: "", notes: "",
+    reparation: REPARATIONS[0], statut: "Reçue", prix: "", date: "", date_returned: "", notes: "",
   });
 
   const userId = session.user.id;
+  const daysLeft = subscription ? Math.max(0, 15 - Math.floor((new Date() - new Date(subscription.trial_start)) / (1000 * 60 * 60 * 24))) : 0;
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadRepairs(); loadAtelier(); }, []);
 
   async function loadRepairs() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("repairs")
-      .select("*")
-      .eq("user_id", userId)
-      .order("id", { ascending: false });
-    if (error) console.error("Erreur chargement:", error);
+    const { data, error } = await supabase.from("repairs").select("*").eq("user_id", userId).order("id", { ascending: false });
+    if (error) console.error("Erreur:", error);
     if (!error) setRepairs(data || []);
     setLoading(false);
   }
@@ -128,30 +177,20 @@ function MainApp({ session }) {
   }
 
   async function handleSubmit() {
-    if (!form.client || !form.marque) {
-      alert("Veuillez remplir au moins le nom du client et la marque !");
-      return;
-    }
-    const finalReparation = form.reparation === "Autre (écrire)" ? (form.reparationCustom || "Autre") : form.reparation;
+    if (!form.client || !form.marque) { alert("Remplissez le nom et la marque !"); return; }
+    const finalReparation = form.reparation === "Autre (écrire)" ? "Autre" : form.reparation;
     const newRepair = {
-      user_id: userId,
-      ticket: form.ticket,
-      client: form.client,
-      tel: form.tel,
-      marque: form.marque,
-      modele: form.modele,
-      reparation: finalReparation,
-      statut: form.statut,
-      prix: form.prix,
+      user_id: userId, ticket: form.ticket, client: form.client, tel: form.tel,
+      marque: form.marque, modele: form.modele, reparation: finalReparation,
+      statut: form.statut, prix: form.prix,
       date: form.date || new Date().toISOString().split("T")[0],
-      date_returned: form.date_returned,
-      notes: form.notes,
+      date_returned: form.date_returned, notes: form.notes,
     };
     const { error } = await supabase.from("repairs").insert([newRepair]);
     if (error) { alert("Erreur: " + error.message); return; }
     await loadRepairs();
     setView("list");
-    setForm({ ticket: "", client: "", tel: "", marque: "", modele: "", reparation: REPARATIONS[0], reparationCustom: "", statut: "Reçue", prix: "", date: "", date_returned: "", notes: "" });
+    setForm({ ticket: "", client: "", tel: "", marque: "", modele: "", reparation: REPARATIONS[0], statut: "Reçue", prix: "", date: "", date_returned: "", notes: "" });
   }
 
   async function updateField(id, field, value) {
@@ -187,10 +226,10 @@ function MainApp({ session }) {
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
     function drawTicket(startY, titre) {
-      doc.setFillColor(74, 124, 89); doc.rect(0, startY, pageW, 12, 'F');
-      doc.setTextColor(255, 255, 255); doc.setFontSize(13); doc.setFont("helvetica", "bold");
+      doc.setFillColor(74,124,89); doc.rect(0,startY,pageW,12,'F');
+      doc.setTextColor(255,255,255); doc.setFontSize(13); doc.setFont("helvetica","bold");
       doc.text("BON DE DEPOT — WatchTrack MontrePro", pageW/2, startY+8, {align:"center"});
-      doc.setFillColor(244, 228, 166); doc.rect(0, startY+12, pageW, 8, 'F');
+      doc.setFillColor(244,228,166); doc.rect(0,startY+12,pageW,8,'F');
       doc.setTextColor(45,62,45); doc.setFontSize(9);
       doc.text(titre, pageW/2, startY+18, {align:"center"});
       doc.setFont("helvetica","bold"); doc.setTextColor(74,124,89);
@@ -199,7 +238,7 @@ function MainApp({ session }) {
       doc.text(`N° : ${r.ticket||"—"}`, 10, startY+34);
       doc.text(`${r.client}`, pageW/2, startY+34);
       doc.text(`Tél : ${r.tel||"—"}`, pageW/2, startY+40);
-      doc.setDrawColor(200,200,200); doc.line(10, startY+44, pageW-10, startY+44);
+      doc.setDrawColor(200,200,200); doc.line(10,startY+44,pageW-10,startY+44);
       doc.setFont("helvetica","bold"); doc.setTextColor(74,124,89);
       doc.text("MONTRE", 10, startY+50); doc.text("DATES & PRIX", pageW/2, startY+50);
       doc.setFont("helvetica","normal"); doc.setTextColor(0,0,0);
@@ -209,18 +248,18 @@ function MainApp({ session }) {
       doc.text(`Rendu : ${formatDate(r.date_returned)}`, pageW/2, startY+62);
       doc.text(`Prix : ${r.prix||"À définir"}`, pageW/2, startY+68);
       if (r.notes) {
-        doc.line(10, startY+72, pageW-10, startY+72);
+        doc.line(10,startY+72,pageW-10,startY+72);
         doc.setFont("helvetica","bold"); doc.setTextColor(74,124,89); doc.text("NOTES :", 10, startY+78);
         doc.setFont("helvetica","italic"); doc.setTextColor(0,0,0);
         doc.text(doc.splitTextToSize(r.notes, pageW-20), 10, startY+84);
       }
-      doc.setDrawColor(200,200,200); doc.setLineDash([2,2]); doc.rect(10, startY+90, 80, 30); doc.setLineDash([]);
+      doc.setDrawColor(200,200,200); doc.setLineDash([2,2]); doc.rect(10,startY+90,80,30); doc.setLineDash([]);
       doc.setFontSize(7); doc.setTextColor(150,150,150); doc.text("Tampon atelier", 50, startY+108, {align:"center"});
       doc.setFontSize(8); doc.setTextColor(100,100,100); doc.text("Signature client :", pageW/2+5, startY+95);
-      doc.setDrawColor(100,100,100); doc.line(pageW/2+5, startY+112, pageW-10, startY+112);
+      doc.setDrawColor(100,100,100); doc.line(pageW/2+5,startY+112,pageW-10,startY+112);
     }
     drawTicket(5, "✂  EXEMPLAIRE CLIENT");
-    doc.setDrawColor(150,150,150); doc.setLineDash([4,3]); doc.line(5, pageH/2, pageW-5, pageH/2); doc.setLineDash([]);
+    doc.setDrawColor(150,150,150); doc.setLineDash([4,3]); doc.line(5,pageH/2,pageW-5,pageH/2); doc.setLineDash([]);
     doc.setFontSize(8); doc.setTextColor(150,150,150); doc.text("✂  Découper ici", pageW/2, pageH/2-2, {align:"center"});
     drawTicket(pageH/2+5, "✂  EXEMPLAIRE ATELIER");
     doc.save(`BonDepot-${r.ticket||r.id}-${r.client.replace(/ /g,"_")}.pdf`);
@@ -266,7 +305,7 @@ function MainApp({ session }) {
     doc.text("TOTAL TTC :", 133, 149); doc.text(`${prixTTC.toFixed(2)}€`, 175, 149);
     doc.setFillColor(74,124,89); doc.rect(0,285,pageW,12,'F');
     doc.setFontSize(8); doc.setTextColor(255,255,255);
-    doc.text("WatchTrack MontrePro — Logiciel de gestion des réparations horlogères", pageW/2, 293, {align:"center"});
+    doc.text("WatchTrack MontrePro — watchtrack-pro.fr", pageW/2, 293, {align:"center"});
     doc.save(`Facture-${numFacture}-${r.client.replace(/ /g,"_")}.pdf`);
     setNextFactureId(nextFactureId+1);
   }
@@ -379,7 +418,7 @@ function MainApp({ session }) {
               onMouseEnter={() => setHoveredNav(item.key)}
               onMouseLeave={() => setHoveredNav(null)}
               onClick={() => {
-                if (item.key === "form") setForm({ ticket: "", client: "", tel: "", marque: "", modele: "", reparation: REPARATIONS[0], reparationCustom: "", statut: "Reçue", prix: "", date: "", date_returned: "", notes: "" });
+                if (item.key === "form") setForm({ ticket: "", client: "", tel: "", marque: "", modele: "", reparation: REPARATIONS[0], statut: "Reçue", prix: "", date: "", date_returned: "", notes: "" });
                 if (item.key === "clients") setSelectedClient(null);
                 setView(item.key);
               }}>
@@ -387,6 +426,16 @@ function MainApp({ session }) {
             </button>
           ))}
           <button style={{ ...S.btn("primary"), padding: "8px 16px", fontSize: 12 }} onClick={downloadExcel}>📥 Export</button>
+          {subscription?.status === "trial" && (
+            <div style={{ padding: "8px 14px", background: daysLeft <= 5 ? "rgba(255,59,48,0.1)" : "rgba(52,199,89,0.1)", borderRadius: 10, fontSize: 12, fontWeight: "700", color: daysLeft <= 5 ? "#FF3B30" : "#2E8B4A", border: `1px solid ${daysLeft <= 5 ? "rgba(255,59,48,0.2)" : "rgba(52,199,89,0.2)"}` }}>
+              ⏱ {daysLeft}j d'essai
+            </div>
+          )}
+          {subscription?.status === "paid" && (
+            <div style={{ padding: "8px 14px", background: "rgba(52,199,89,0.1)", borderRadius: 10, fontSize: 12, fontWeight: "700", color: "#2E8B4A" }}>
+              ✅ Licence active
+            </div>
+          )}
           <div style={{ fontSize: 12, color: "#86868b", padding: "8px 12px", background: "rgba(0,0,0,0.04)", borderRadius: 10 }}>{session.user.email}</div>
           <button style={{ ...S.btn("danger"), padding: "8px 16px", fontSize: 12 }} onClick={() => supabase.auth.signOut()}>Déconnexion</button>
         </nav>
@@ -425,6 +474,22 @@ function MainApp({ session }) {
               </div>
               <div style={{ marginTop: 24, padding: 16, background: "rgba(52,199,89,0.1)", borderRadius: 12 }}>
                 <p style={{ color: "#2E8B4A", fontSize: 13, fontWeight: "600", margin: 0 }}>✅ Sauvegardé automatiquement !</p>
+              </div>
+              <div style={{ marginTop: 20, padding: 24, background: "rgba(0,122,255,0.06)", borderRadius: 16, border: "1px solid rgba(0,122,255,0.2)" }}>
+                <p style={{ color: "#007AFF", fontSize: 15, fontWeight: "700", marginBottom: 16 }}>💳 Mon abonnement</p>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  <a href="https://buy.stripe.com/00w14ncT29W28fD8o26g804" target="_blank" rel="noreferrer"
+                    style={{ padding: "12px 24px", background: "linear-gradient(135deg, #34C759, #2E8B4A)", color: "white", borderRadius: 12, fontSize: 13, fontWeight: "700", textDecoration: "none" }}>
+                    🔄 19,90€/mois
+                  </a>
+                  <a href="https://buy.stripe.com/7sY5kD06gb06eE1fQu6g807" target="_blank" rel="noreferrer"
+                    style={{ padding: "12px 24px", background: "linear-gradient(135deg, #2E8B4A, #1a5c30)", color: "white", borderRadius: 12, fontSize: 13, fontWeight: "700", textDecoration: "none" }}>
+                    💎 169€ à vie
+                  </a>
+                </div>
+                <p style={{ fontSize: 12, color: "#86868b", marginTop: 12 }}>
+                  Après paiement contactez-nous : <a href="mailto:watchtrack-pro@outlook.com" style={{ color: "#007AFF" }}>watchtrack-pro@outlook.com</a>
+                </p>
               </div>
             </div>
           </>
@@ -493,6 +558,18 @@ function MainApp({ session }) {
               <div style={S.sectionTitle}>Tableau de bord</div>
               <div style={S.sectionSub}>{new Date().toLocaleDateString("fr-FR", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>
             </div>
+            {subscription?.status === "trial" && daysLeft <= 7 && (
+              <div style={{ marginBottom: 20, padding: 20, background: daysLeft <= 3 ? "rgba(255,59,48,0.08)" : "rgba(255,149,0,0.08)", borderRadius: 16, border: `1px solid ${daysLeft <= 3 ? "rgba(255,59,48,0.2)" : "rgba(255,149,0,0.2)"}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: "700", color: daysLeft <= 3 ? "#FF3B30" : "#FF9500" }}>⏱ Plus que {daysLeft} jour(s) d'essai !</div>
+                  <div style={{ fontSize: 13, color: "#86868b" }}>Passez à la version complète pour continuer</div>
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <a href="https://buy.stripe.com/00w14ncT29W28fD8o26g804" target="_blank" rel="noreferrer" style={{ padding: "10px 20px", background: "linear-gradient(135deg, #34C759, #2E8B4A)", color: "white", borderRadius: 12, fontSize: 13, fontWeight: "700", textDecoration: "none" }}>19,90€/mois</a>
+                  <a href="https://buy.stripe.com/7sY5kD06gb06eE1fQu6g807" target="_blank" rel="noreferrer" style={{ padding: "10px 20px", background: "linear-gradient(135deg, #2E8B4A, #1a5c30)", color: "white", borderRadius: 12, fontSize: 13, fontWeight: "700", textDecoration: "none" }}>💎 169€ à vie</a>
+                </div>
+              </div>
+            )}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16, marginBottom: 28 }}>
               {[
                 { label: "En atelier", val: stats.enCours, accent: "#1A5FA8", icon: "⌚" },
@@ -735,19 +812,42 @@ function MainApp({ session }) {
   );
 }
 
+// ===== APP PRINCIPALE =====
 export default function App() {
   const [session, setSession] = useState(null);
+  const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setLoading(false);
+      if (session) loadSubscription(session.user.id);
+      else setLoading(false);
     });
     supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session) loadSubscription(session.user.id);
+      else { setSubscription(null); setLoading(false); }
     });
   }, []);
+
+  async function loadSubscription(userId) {
+    const { data } = await supabase.from("subscriptions").select("*").eq("user_id", userId).single();
+    if (!data) {
+      const { data: newSub } = await supabase.from("subscriptions").insert([{ user_id: userId, status: "trial", trial_start: new Date().toISOString() }]).select().single();
+      setSubscription(newSub);
+    } else {
+      setSubscription(data);
+    }
+    setLoading(false);
+  }
+
+  function isTrialExpired(sub) {
+    if (!sub) return false;
+    if (sub.status === "paid") return false;
+    const days = Math.floor((new Date() - new Date(sub.trial_start)) / (1000 * 60 * 60 * 24));
+    return days >= 15;
+  }
 
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "linear-gradient(160deg, #f0f4f0 0%, #e8f0e8 50%, #f5f5f7 100%)" }}>
@@ -756,5 +856,6 @@ export default function App() {
   );
 
   if (!session) return <LoginPage />;
-  return <MainApp session={session} />;
+  if (isTrialExpired(subscription)) return <TrialExpiredPage session={session} />;
+  return <MainApp session={session} subscription={subscription} />;
 }
