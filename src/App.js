@@ -36,7 +36,6 @@ function formatDate(dateStr) {
   return `${d}/${m}/${y}`;
 }
 
-// ===== PAGE DE CONNEXION =====
 function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -94,18 +93,14 @@ function LoginPage() {
   );
 }
 
-// ===== PAGE BLOCAGE =====
-function TrialExpiredPage({ session }) {
-  
-
+function TrialExpiredPage() {
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       <div style={{ background: "rgba(255,255,255,0.97)", borderRadius: 28, padding: 48, maxWidth: 560, width: "90%", textAlign: "center", boxShadow: "0 40px 100px rgba(0,0,0,0.4)" }}>
         <div style={{ width: 70, height: 70, background: "linear-gradient(135deg, #34C759, #2E8B4A)", borderRadius: 20, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, margin: "0 auto 20px" }}>⌚</div>
         <h2 style={{ color: "#1d1d1f", fontSize: 22, marginBottom: 8, fontWeight: "700" }}>WatchTrack MontrePro</h2>
         <p style={{ color: "#86868b", fontSize: 14, marginBottom: 28, lineHeight: 1.6 }}>
-          Votre période d'essai de 15 jours est terminée.<br />
-          Choisissez une formule pour continuer !
+          Votre période d'essai de 15 jours est terminée.<br />Choisissez une formule pour continuer !
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 28 }}>
           <a href="https://buy.stripe.com/00w14ncT29W28fD8o26g804" target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
@@ -137,7 +132,6 @@ function TrialExpiredPage({ session }) {
   );
 }
 
-// ===== APPLICATION PRINCIPALE =====
 function MainApp({ session, subscription }) {
   const [repairs, setRepairs] = useState([]);
   const [view, setView] = useState("dashboard");
@@ -154,7 +148,7 @@ function MainApp({ session, subscription }) {
   const [atelier, setAtelier] = useState({ nom: "", adresse: "", codePostal: "", ville: "", siret: "", email: "", tel: "" });
   const [form, setForm] = useState({
     ticket: "", client: "", tel: "", marque: "", modele: "",
-    reparation: REPARATIONS[0], statut: "Reçue", prix: "", date: "", date_returned: "", notes: "",
+    reparation: REPARATIONS[0], statut: "Reçue", prix: "", acompte: "", date: "", date_returned: "", notes: "",
   });
 
   const userId = session.user.id;
@@ -182,7 +176,7 @@ function MainApp({ session, subscription }) {
     const newRepair = {
       user_id: userId, ticket: form.ticket, client: form.client, tel: form.tel,
       marque: form.marque, modele: form.modele, reparation: finalReparation,
-      statut: form.statut, prix: form.prix,
+      statut: form.statut, prix: form.prix, acompte: form.acompte,
       date: form.date || new Date().toISOString().split("T")[0],
       date_returned: form.date_returned, notes: form.notes,
     };
@@ -190,7 +184,7 @@ function MainApp({ session, subscription }) {
     if (error) { alert("Erreur: " + error.message); return; }
     await loadRepairs();
     setView("list");
-    setForm({ ticket: "", client: "", tel: "", marque: "", modele: "", reparation: REPARATIONS[0], statut: "Reçue", prix: "", date: "", date_returned: "", notes: "" });
+    setForm({ ticket: "", client: "", tel: "", marque: "", modele: "", reparation: REPARATIONS[0], statut: "Reçue", prix: "", acompte: "", date: "", date_returned: "", notes: "" });
   }
 
   async function updateField(id, field, value) {
@@ -212,8 +206,11 @@ function MainApp({ session, subscription }) {
   }
 
   function downloadExcel() {
-    let csv = "N° Ticket,Nom Client,Téléphone,Marque,Modèle,Réparation,Statut,Prix,Date dépôt,Date rendu,Notes\n";
-    repairs.forEach(r => { csv += `"${r.ticket||''}","${r.client}","${r.tel}","${r.marque}","${r.modele}","${r.reparation}","${r.statut}","${r.prix}","${formatDate(r.date)}","${formatDate(r.date_returned)}","${r.notes||''}"\n`; });
+    let csv = "N° Ticket,Nom Client,Téléphone,Marque,Modèle,Réparation,Statut,Prix,Acompte,Reste dû,Date dépôt,Date rendu,Notes\n";
+    repairs.forEach(r => {
+      const resteDu = (parseFloat(r.prix) || 0) - (parseFloat(r.acompte) || 0);
+      csv += `"${r.ticket||''}","${r.client}","${r.tel}","${r.marque}","${r.modele}","${r.reparation}","${r.statut}","${r.prix}","${r.acompte||''}","${resteDu.toFixed(2)}","${formatDate(r.date)}","${formatDate(r.date_returned)}","${r.notes||''}"\n`;
+    });
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
@@ -225,6 +222,7 @@ function MainApp({ session, subscription }) {
     const doc = new jsPDF();
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
+    const resteDu = (parseFloat(r.prix) || 0) - (parseFloat(r.acompte) || 0);
     function drawTicket(startY, titre) {
       doc.setFillColor(74,124,89); doc.rect(0,startY,pageW,12,'F');
       doc.setTextColor(255,255,255); doc.setFontSize(13); doc.setFont("helvetica","bold");
@@ -246,17 +244,24 @@ function MainApp({ session, subscription }) {
       doc.text(`Réparation : ${r.reparation}`, 10, startY+62);
       doc.text(`Dépôt : ${formatDate(r.date)}`, pageW/2, startY+56);
       doc.text(`Rendu : ${formatDate(r.date_returned)}`, pageW/2, startY+62);
-      doc.text(`Prix : ${r.prix||"À définir"}`, pageW/2, startY+68);
-      if (r.notes) {
-        doc.line(10,startY+72,pageW-10,startY+72);
-        doc.setFont("helvetica","bold"); doc.setTextColor(74,124,89); doc.text("NOTES :", 10, startY+78);
-        doc.setFont("helvetica","italic"); doc.setTextColor(0,0,0);
-        doc.text(doc.splitTextToSize(r.notes, pageW-20), 10, startY+84);
+      doc.text(`Prix total : ${r.prix||"À définir"}`, pageW/2, startY+68);
+      if (r.acompte && parseFloat(r.acompte) > 0) {
+        doc.setTextColor(26,110,53);
+        doc.text(`Acompte reçu : ${r.acompte}€`, pageW/2, startY+74);
+        doc.setFont("helvetica","bold");
+        doc.text(`Reste dû : ${resteDu.toFixed(2)}€`, pageW/2, startY+80);
+        doc.setFont("helvetica","normal"); doc.setTextColor(0,0,0);
       }
-      doc.setDrawColor(200,200,200); doc.setLineDash([2,2]); doc.rect(10,startY+90,80,30); doc.setLineDash([]);
-      doc.setFontSize(7); doc.setTextColor(150,150,150); doc.text("Tampon atelier", 50, startY+108, {align:"center"});
-      doc.setFontSize(8); doc.setTextColor(100,100,100); doc.text("Signature client :", pageW/2+5, startY+95);
-      doc.setDrawColor(100,100,100); doc.line(pageW/2+5,startY+112,pageW-10,startY+112);
+      if (r.notes) {
+        doc.line(10,startY+85,pageW-10,startY+85);
+        doc.setFont("helvetica","bold"); doc.setTextColor(74,124,89); doc.text("NOTES :", 10, startY+91);
+        doc.setFont("helvetica","italic"); doc.setTextColor(0,0,0);
+        doc.text(doc.splitTextToSize(r.notes, pageW-20), 10, startY+97);
+      }
+      doc.setDrawColor(200,200,200); doc.setLineDash([2,2]); doc.rect(10,startY+102,80,25); doc.setLineDash([]);
+      doc.setFontSize(7); doc.setTextColor(150,150,150); doc.text("Tampon atelier", 50, startY+117, {align:"center"});
+      doc.setFontSize(8); doc.setTextColor(100,100,100); doc.text("Signature client :", pageW/2+5, startY+107);
+      doc.setDrawColor(100,100,100); doc.line(pageW/2+5,startY+122,pageW-10,startY+122);
     }
     drawTicket(5, "✂  EXEMPLAIRE CLIENT");
     doc.setDrawColor(150,150,150); doc.setLineDash([4,3]); doc.line(5,pageH/2,pageW-5,pageH/2); doc.setLineDash([]);
@@ -270,6 +275,11 @@ function MainApp({ session, subscription }) {
     const pageW = doc.internal.pageSize.getWidth();
     const year = new Date().getFullYear();
     const numFacture = `FAC-${year}-${String(nextFactureId).padStart(3,"0")}`;
+    const prixTTC = parseFloat(r.prix)||0;
+    const acompte = parseFloat(r.acompte)||0;
+    const resteDu = prixTTC - acompte;
+    const prixHT = (prixTTC/1.2).toFixed(2);
+    const tva = (prixTTC-parseFloat(prixHT)).toFixed(2);
     doc.setFillColor(74,124,89); doc.rect(0,0,pageW,35,'F');
     doc.setTextColor(255,255,255); doc.setFontSize(24); doc.setFont("helvetica","bold");
     doc.text("FACTURE", pageW/2, 15, {align:"center"});
@@ -291,18 +301,24 @@ function MainApp({ session, subscription }) {
     doc.text(`Ticket N° : ${r.ticket||"—"}`, 115, 89);
     doc.setFillColor(74,124,89); doc.rect(10,108,pageW-20,10,'F');
     doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(10);
-    doc.text("Description", 15, 115); doc.text("HT", 130, 115); doc.text("TVA", 158, 115); doc.text("TTC", 175, 115);
+    doc.text("Description", 15, 115); doc.text("HT", 130, 115); doc.text("TVA", 155, 115); doc.text("TTC", 175, 115);
     doc.setTextColor(0,0,0); doc.setFont("helvetica","normal");
     doc.setFillColor(249,251,247); doc.rect(10,118,pageW-20,14,'F');
-    const prixTTC = parseFloat(r.prix)||0;
-    const prixHT = (prixTTC/1.2).toFixed(2);
-    const tva = (prixTTC-parseFloat(prixHT)).toFixed(2);
     doc.text(doc.splitTextToSize(`${r.marque} ${r.modele} — ${r.reparation}`, 110), 15, 126);
-    doc.text(`${prixHT}€`, 130, 126); doc.text(`${tva}€`, 158, 126); doc.text(`${prixTTC.toFixed(2)}€`, 175, 126);
+    doc.text(`${prixHT}€`, 130, 126); doc.text(`${tva}€`, 155, 126); doc.text(`${prixTTC.toFixed(2)}€`, 175, 126);
     doc.setDrawColor(74,124,89); doc.line(10,140,pageW-10,140);
-    doc.setFillColor(74,124,89); doc.rect(130,143,pageW-140,8,'F');
-    doc.setTextColor(255,255,255); doc.setFont("helvetica","bold");
-    doc.text("TOTAL TTC :", 133, 149); doc.text(`${prixTTC.toFixed(2)}€`, 175, 149);
+    if (acompte > 0) {
+      doc.setFillColor(240,248,244); doc.rect(130,143,pageW-140,8,'F');
+      doc.setFont("helvetica","normal"); doc.setTextColor(0,0,0);
+      doc.text("Acompte reçu :", 133, 149); doc.text(`- ${acompte.toFixed(2)}€`, 175, 149);
+      doc.setFillColor(74,124,89); doc.rect(130,153,pageW-140,8,'F');
+      doc.setTextColor(255,255,255); doc.setFont("helvetica","bold");
+      doc.text("RESTE DÛ :", 133, 159); doc.text(`${resteDu.toFixed(2)}€`, 175, 159);
+    } else {
+      doc.setFillColor(74,124,89); doc.rect(130,143,pageW-140,8,'F');
+      doc.setTextColor(255,255,255); doc.setFont("helvetica","bold");
+      doc.text("TOTAL TTC :", 133, 149); doc.text(`${prixTTC.toFixed(2)}€`, 175, 149);
+    }
     doc.setFillColor(74,124,89); doc.rect(0,285,pageW,12,'F');
     doc.setFontSize(8); doc.setTextColor(255,255,255);
     doc.text("WatchTrack MontrePro — watchtrack-pro.fr", pageW/2, 293, {align:"center"});
@@ -325,14 +341,16 @@ function MainApp({ session, subscription }) {
     pretes: repairs.filter(r => r.statut === "Prête").length,
     attente: repairs.filter(r => r.statut === "En attente de pièce").length,
     ca: repairs.filter(r => r.statut === "Rendue").reduce((s,r) => s+Number(r.prix||0), 0),
+    acomptes: repairs.filter(r => r.acompte && parseFloat(r.acompte) > 0).reduce((s,r) => s+Number(r.acompte||0), 0),
   };
 
   const clientsMap = repairs.reduce((acc, r) => {
     const key = r.client?.toLowerCase().trim();
     if (!key) return acc;
-    if (!acc[key]) acc[key] = { nom: r.client, tel: r.tel, montres: [], totalDepense: 0, derniereVisite: r.date, marquesCount: {} };
+    if (!acc[key]) acc[key] = { nom: r.client, tel: r.tel, montres: [], totalDepense: 0, totalAcompte: 0, derniereVisite: r.date, marquesCount: {} };
     acc[key].montres.push(r);
     acc[key].totalDepense += parseFloat(r.prix)||0;
+    acc[key].totalAcompte += parseFloat(r.acompte)||0;
     if (r.date > acc[key].derniereVisite) acc[key].derniereVisite = r.date;
     if (r.marque) acc[key].marquesCount[r.marque] = (acc[key].marquesCount[r.marque]||0)+1;
     return acc;
@@ -363,6 +381,7 @@ function MainApp({ session, subscription }) {
     statCard: { background: "rgba(255,255,255,0.9)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.8)", borderRadius: 20, padding: "24px", position: "relative", overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.06)" },
     rowColored: (statut) => ({ background: STATUT_COLORS[statut]?.rowBg||"white" }),
     alertBadge: { display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 8, fontSize: 10, fontWeight: "700", background: "#FF3B3015", color: "#FF3B30", marginLeft: 8 },
+    acompteBadge: { display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 8, fontSize: 10, fontWeight: "700", background: "rgba(26,110,53,0.1)", color: "#1A6E35", marginLeft: 6 },
     sectionTitle: { fontSize: 22, fontWeight: "700", color: "#1d1d1f", marginBottom: 4, letterSpacing: "-0.5px" },
     sectionSub: { fontSize: 13, color: "#86868b", marginBottom: 24 },
     divider: { height: 1, background: "rgba(0,0,0,0.06)", margin: "24px 0" },
@@ -418,7 +437,7 @@ function MainApp({ session, subscription }) {
               onMouseEnter={() => setHoveredNav(item.key)}
               onMouseLeave={() => setHoveredNav(null)}
               onClick={() => {
-                if (item.key === "form") setForm({ ticket: "", client: "", tel: "", marque: "", modele: "", reparation: REPARATIONS[0], statut: "Reçue", prix: "", date: "", date_returned: "", notes: "" });
+                if (item.key === "form") setForm({ ticket: "", client: "", tel: "", marque: "", modele: "", reparation: REPARATIONS[0], statut: "Reçue", prix: "", acompte: "", date: "", date_returned: "", notes: "" });
                 if (item.key === "clients") setSelectedClient(null);
                 setView(item.key);
               }}>
@@ -427,14 +446,12 @@ function MainApp({ session, subscription }) {
           ))}
           <button style={{ ...S.btn("primary"), padding: "8px 16px", fontSize: 12 }} onClick={downloadExcel}>📥 Export</button>
           {subscription?.status === "trial" && (
-            <div style={{ padding: "8px 14px", background: daysLeft <= 5 ? "rgba(255,59,48,0.1)" : "rgba(52,199,89,0.1)", borderRadius: 10, fontSize: 12, fontWeight: "700", color: daysLeft <= 5 ? "#FF3B30" : "#2E8B4A", border: `1px solid ${daysLeft <= 5 ? "rgba(255,59,48,0.2)" : "rgba(52,199,89,0.2)"}` }}>
+            <div style={{ padding: "8px 14px", background: daysLeft <= 5 ? "rgba(255,59,48,0.1)" : "rgba(52,199,89,0.1)", borderRadius: 10, fontSize: 12, fontWeight: "700", color: daysLeft <= 5 ? "#FF3B30" : "#2E8B4A" }}>
               ⏱ {daysLeft}j d'essai
             </div>
           )}
           {subscription?.status === "paid" && (
-            <div style={{ padding: "8px 14px", background: "rgba(52,199,89,0.1)", borderRadius: 10, fontSize: 12, fontWeight: "700", color: "#2E8B4A" }}>
-              ✅ Licence active
-            </div>
+            <div style={{ padding: "8px 14px", background: "rgba(52,199,89,0.1)", borderRadius: 10, fontSize: 12, fontWeight: "700", color: "#2E8B4A" }}>✅ Licence active</div>
           )}
           <div style={{ fontSize: 12, color: "#86868b", padding: "8px 12px", background: "rgba(0,0,0,0.04)", borderRadius: 10 }}>{session.user.email}</div>
           <button style={{ ...S.btn("danger"), padding: "8px 16px", fontSize: 12 }} onClick={() => supabase.auth.signOut()}>Déconnexion</button>
@@ -488,7 +505,7 @@ function MainApp({ session, subscription }) {
                   </a>
                 </div>
                 <p style={{ fontSize: 12, color: "#86868b", marginTop: 12 }}>
-                  Après paiement contactez-nous : <a href="mailto:watchtrack-pro@outlook.com" style={{ color: "#007AFF" }}>watchtrack-pro@outlook.com</a>
+                  Après paiement : <a href="mailto:watchtrack-pro@outlook.com" style={{ color: "#007AFF" }}>watchtrack-pro@outlook.com</a>
                 </p>
               </div>
             </div>
@@ -515,9 +532,10 @@ function MainApp({ session, subscription }) {
                       <div style={{ fontSize: 11, color: "#86868b" }}>total</div>
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <div style={{ padding: "4px 10px", background: "rgba(26,95,168,0.1)", borderRadius: 8, fontSize: 11, fontWeight: "600", color: "#1A5FA8" }}>⌚ {c.montres.length}</div>
                     {c.montres.filter(m => m.statut !== "Rendue").length > 0 && <div style={{ padding: "4px 10px", background: "rgba(184,74,0,0.1)", borderRadius: 8, fontSize: 11, fontWeight: "600", color: "#B84A00" }}>🔧 {c.montres.filter(m => m.statut !== "Rendue").length} en cours</div>}
+                    {c.totalAcompte > 0 && <div style={{ padding: "4px 10px", background: "rgba(26,110,53,0.1)", borderRadius: 8, fontSize: 11, fontWeight: "600", color: "#1A6E35" }}>💰 {c.totalAcompte.toFixed(0)}€ acompte</div>}
                   </div>
                 </div>
               ))}
@@ -531,21 +549,41 @@ function MainApp({ session, subscription }) {
               <button style={{ background: "rgba(0,0,0,0.06)", border: "none", width: 36, height: 36, borderRadius: 10, cursor: "pointer", fontSize: 16 }} onClick={() => setSelectedClient(null)}>←</button>
               <div style={S.sectionTitle}>{selectedClient.nom}</div>
             </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+              {[
+                { label: "Montres", val: selectedClient.montres.length, icon: "⌚", accent: "#1A5FA8" },
+                { label: "Total dépensé", val: selectedClient.totalDepense.toFixed(0)+"€", icon: "💶", accent: "#1A6E35" },
+                { label: "Acomptes reçus", val: selectedClient.totalAcompte.toFixed(0)+"€", icon: "💰", accent: "#A07800" },
+                { label: "Reste dû", val: (selectedClient.totalDepense-selectedClient.totalAcompte).toFixed(0)+"€", icon: "📋", accent: "#B84A00" },
+              ].map((s, i) => (
+                <div key={i} style={S.statCard}>
+                  <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: s.accent, borderRadius: "20px 20px 0 0" }} />
+                  <div style={{ width: 44, height: 44, background: `${s.accent}18`, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, marginBottom: 12 }}>{s.icon}</div>
+                  <div style={{ fontSize: 24, color: "#1d1d1f", marginBottom: 4, fontWeight: "700" }}>{s.val}</div>
+                  <div style={{ fontSize: 12, color: "#86868b" }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
             <div style={S.card}>
               <div style={S.cardHeader}><span style={S.cardTitle}>Historique</span></div>
               <table style={S.table}>
-                <thead><tr>{["Ticket","Montre","Réparation","Date","Statut","Prix"].map((h,i) => <th key={i} style={S.th}>{h}</th>)}</tr></thead>
+                <thead><tr>{["Ticket","Montre","Réparation","Date","Statut","Prix","Acompte","Reste dû"].map((h,i) => <th key={i} style={S.th}>{h}</th>)}</tr></thead>
                 <tbody>
-                  {selectedClient.montres.map(r => (
-                    <tr key={r.id} style={{ ...S.rowColored(r.statut), cursor: "pointer" }} onClick={() => { setSelected(r); setView("detail"); }}>
-                      <td style={S.td(false)}><span style={{ color: "#B84A00", fontWeight: "700" }}>{r.ticket||"—"}</span></td>
-                      <td style={{ ...S.td(false), fontWeight: "600" }}>{r.marque} {r.modele}</td>
-                      <td style={{ ...S.td(false), color: "#555" }}>{r.reparation}</td>
-                      <td style={{ ...S.td(false), color: "#86868b" }}>{formatDate(r.date)}</td>
-                      <td style={S.td(false)}><span style={S.badge(r.statut)}>{r.statut}</span></td>
-                      <td style={{ ...S.td(false), fontWeight: "700", color: "#1A6E35" }}>{r.prix ? r.prix+"€" : "—"}</td>
-                    </tr>
-                  ))}
+                  {selectedClient.montres.map(r => {
+                    const resteDu = (parseFloat(r.prix)||0) - (parseFloat(r.acompte)||0);
+                    return (
+                      <tr key={r.id} style={{ ...S.rowColored(r.statut), cursor: "pointer" }} onClick={() => { setSelected(r); setView("detail"); }}>
+                        <td style={S.td(false)}><span style={{ color: "#B84A00", fontWeight: "700" }}>{r.ticket||"—"}</span></td>
+                        <td style={{ ...S.td(false), fontWeight: "600" }}>{r.marque} {r.modele}</td>
+                        <td style={{ ...S.td(false), color: "#555" }}>{r.reparation}</td>
+                        <td style={{ ...S.td(false), color: "#86868b" }}>{formatDate(r.date)}</td>
+                        <td style={S.td(false)}><span style={S.badge(r.statut)}>{r.statut}</span></td>
+                        <td style={{ ...S.td(false), fontWeight: "700", color: "#1A6E35" }}>{r.prix ? r.prix+"€" : "—"}</td>
+                        <td style={{ ...S.td(false), fontWeight: "700", color: "#A07800" }}>{r.acompte ? r.acompte+"€" : "—"}</td>
+                        <td style={{ ...S.td(false), fontWeight: "700", color: resteDu > 0 ? "#B84A00" : "#1A6E35" }}>{r.prix ? resteDu.toFixed(2)+"€" : "—"}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -562,7 +600,7 @@ function MainApp({ session, subscription }) {
               <div style={{ marginBottom: 20, padding: 20, background: daysLeft <= 3 ? "rgba(255,59,48,0.08)" : "rgba(255,149,0,0.08)", borderRadius: 16, border: `1px solid ${daysLeft <= 3 ? "rgba(255,59,48,0.2)" : "rgba(255,149,0,0.2)"}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
                   <div style={{ fontSize: 15, fontWeight: "700", color: daysLeft <= 3 ? "#FF3B30" : "#FF9500" }}>⏱ Plus que {daysLeft} jour(s) d'essai !</div>
-                  <div style={{ fontSize: 13, color: "#86868b" }}>Passez à la version complète pour continuer</div>
+                  <div style={{ fontSize: 13, color: "#86868b" }}>Passez à la version complète</div>
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
                   <a href="https://buy.stripe.com/00w14ncT29W28fD8o26g804" target="_blank" rel="noreferrer" style={{ padding: "10px 20px", background: "linear-gradient(135deg, #34C759, #2E8B4A)", color: "white", borderRadius: 12, fontSize: 13, fontWeight: "700", textDecoration: "none" }}>19,90€/mois</a>
@@ -570,18 +608,19 @@ function MainApp({ session, subscription }) {
                 </div>
               </div>
             )}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16, marginBottom: 28 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16, marginBottom: 28 }}>
               {[
                 { label: "En atelier", val: stats.enCours, accent: "#1A5FA8", icon: "⌚" },
                 { label: "Prêtes", val: stats.pretes, accent: "#1A6E35", icon: "✅" },
                 { label: "Attente pièce", val: stats.attente, accent: "#A07800", icon: "⏳" },
                 { label: "Total fiches", val: stats.total, accent: "#6B1E9E", icon: "📋" },
                 { label: "CA encaissé", val: stats.ca+"€", accent: "#B84A00", icon: "💰" },
+                { label: "Acomptes", val: stats.acomptes+"€", accent: "#1A6E35", icon: "💵" },
               ].map((s,i) => (
                 <div key={i} style={S.statCard}>
                   <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: s.accent, borderRadius: "20px 20px 0 0" }} />
                   <div style={{ width: 44, height: 44, background: `${s.accent}18`, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, marginBottom: 12 }}>{s.icon}</div>
-                  <div style={{ fontSize: 34, color: "#1d1d1f", marginBottom: 4, fontWeight: "700" }}>{s.val}</div>
+                  <div style={{ fontSize: 28, color: "#1d1d1f", marginBottom: 4, fontWeight: "700" }}>{s.val}</div>
                   <div style={{ fontSize: 12, color: "#86868b" }}>{s.label}</div>
                 </div>
               ))}
@@ -603,23 +642,50 @@ function MainApp({ session, subscription }) {
                 ))}
               </div>
             )}
+            {repairs.filter(r => r.acompte && parseFloat(r.acompte) > 0 && r.statut !== "Rendue").length > 0 && (
+              <div style={{ ...S.card, marginBottom: 20, border: "1px solid rgba(26,110,53,0.2)" }}>
+                <div style={{ ...S.cardHeader, background: "rgba(26,110,53,0.05)" }}>
+                  <span style={{ ...S.cardTitle, color: "#1A6E35" }}>💰 Acomptes reçus — En cours</span>
+                </div>
+                {repairs.filter(r => r.acompte && parseFloat(r.acompte) > 0 && r.statut !== "Rendue").map(r => {
+                  const resteDu = (parseFloat(r.prix)||0) - (parseFloat(r.acompte)||0);
+                  return (
+                    <div key={r.id} style={{ padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid rgba(0,0,0,0.04)", cursor: "pointer" }} onClick={() => { setSelected(r); setView("detail"); }}>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: "600" }}>{r.client}</div>
+                        <div style={{ fontSize: 12, color: "#86868b" }}>{r.marque} {r.modele}</div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 12, color: "#1A6E35", fontWeight: "600" }}>Acompte : {r.acompte}€</div>
+                        <div style={{ fontSize: 12, color: "#B84A00", fontWeight: "700" }}>Reste : {resteDu.toFixed(2)}€</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             <div style={S.card}>
               <div style={S.cardHeader}>
                 <span style={S.cardTitle}>Réparations récentes</span>
                 <button style={S.btn("secondary")} onClick={() => setView("list")}>Voir tout →</button>
               </div>
               <table style={S.table}>
-                <thead><tr>{["Ticket","Client","Montre","Statut","Prix"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                <thead><tr>{["Ticket","Client","Montre","Statut","Prix","Acompte","Reste dû"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
                 <tbody>
-                  {repairs.slice(0,5).map(r => (
-                    <tr key={r.id} style={{ cursor: "pointer", ...S.rowColored(r.statut) }} onClick={() => { setSelected(r); setView("detail"); }}>
-                      <td style={S.td(false)}><span style={{ color: "#B84A00", fontWeight: "700" }}>{r.ticket||"—"}</span></td>
-                      <td style={S.td(false)}><div style={{ fontWeight: "600" }}>{r.client}</div><div style={{ fontSize: 11, color: "#86868b" }}>{r.tel}</div></td>
-                      <td style={{ ...S.td(false), fontWeight: "600" }}>{r.marque} {r.modele}</td>
-                      <td style={S.td(false)}><span style={S.badge(r.statut)}>{r.statut}</span></td>
-                      <td style={{ ...S.td(false), fontWeight: "700", color: "#1A6E35" }}>{r.prix ? r.prix+"€" : "—"}</td>
-                    </tr>
-                  ))}
+                  {repairs.slice(0,5).map(r => {
+                    const resteDu = (parseFloat(r.prix)||0) - (parseFloat(r.acompte)||0);
+                    return (
+                      <tr key={r.id} style={{ cursor: "pointer", ...S.rowColored(r.statut) }} onClick={() => { setSelected(r); setView("detail"); }}>
+                        <td style={S.td(false)}><span style={{ color: "#B84A00", fontWeight: "700" }}>{r.ticket||"—"}</span></td>
+                        <td style={S.td(false)}><div style={{ fontWeight: "600" }}>{r.client}</div><div style={{ fontSize: 11, color: "#86868b" }}>{r.tel}</div></td>
+                        <td style={{ ...S.td(false), fontWeight: "600" }}>{r.marque} {r.modele}</td>
+                        <td style={S.td(false)}><span style={S.badge(r.statut)}>{r.statut}</span></td>
+                        <td style={{ ...S.td(false), fontWeight: "700", color: "#1A6E35" }}>{r.prix ? r.prix+"€" : "—"}</td>
+                        <td style={{ ...S.td(false), fontWeight: "600", color: "#A07800" }}>{r.acompte ? r.acompte+"€" : "—"}</td>
+                        <td style={{ ...S.td(false), fontWeight: "700", color: r.acompte ? "#B84A00" : "#86868b" }}>{r.prix ? resteDu.toFixed(2)+"€" : "—"}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -651,33 +717,38 @@ function MainApp({ session, subscription }) {
               <div style={{ overflowX: "auto" }}>
                 <table style={S.table}>
                   <thead>
-                    <tr>{["Ticket","Client","Montre","Réparation","Notes","Date","Rendu","Statut","Prix",""].map((h,i) => <th key={i} style={S.th}>{h}</th>)}</tr>
+                    <tr>{["Ticket","Client","Montre","Réparation","Notes","Date","Rendu","Statut","Prix","Acompte","Reste dû",""].map((h,i) => <th key={i} style={S.th}>{h}</th>)}</tr>
                   </thead>
                   <tbody>
                     {filtered.length === 0 && (
-                      <tr><td colSpan={10} style={{ textAlign: "center", color: "#86868b", padding: "60px" }}>
+                      <tr><td colSpan={12} style={{ textAlign: "center", color: "#86868b", padding: "60px" }}>
                         <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>Aucune réparation
                       </td></tr>
                     )}
-                    {filtered.map(r => (
-                      <tr key={r.id} style={S.rowColored(r.statut)}>
-                        <td style={S.td(zoomTable)}><input type="text" style={{ ...S.inlineInput, color: "#B84A00", fontWeight: "700", width: "70px" }} value={r.ticket||""} onChange={e => updateField(r.id, "ticket", e.target.value)} /></td>
-                        <td style={{ ...S.td(zoomTable), cursor: "pointer" }} onClick={() => { setSelected(r); setView("detail"); }}>
-                          <div style={{ fontWeight: "600" }}>{r.client}{isOld(r.date, r.statut) && <span style={S.alertBadge}>⏱ {daysSince(r.date)}j</span>}</div>
-                          <div style={{ fontSize: 11, color: "#86868b" }}>{r.tel}</div>
-                        </td>
-                        <td style={{ ...S.td(zoomTable), cursor: "pointer" }} onClick={() => { setSelected(r); setView("detail"); }}>{r.marque} {r.modele}</td>
-                        <td style={{ ...S.td(zoomTable), color: "#555", cursor: "pointer" }} onClick={() => { setSelected(r); setView("detail"); }}>{r.reparation}</td>
-                        <td style={{ ...S.td(zoomTable), cursor: "pointer" }} onClick={() => { setSelected(r); setView("detail"); }}>
-                          <div style={S.noteDisplay}>{r.notes||<span style={{ color: "#ccc" }}>—</span>}</div>
-                        </td>
-                        <td style={{ ...S.td(zoomTable), color: "#86868b" }}>{formatDate(r.date)}</td>
-                        <td style={S.td(zoomTable)}><input type="date" style={S.dateInput} value={r.date_returned||""} onChange={e => updateField(r.id, "date_returned", e.target.value)} /></td>
-                        <td style={{ ...S.td(zoomTable), cursor: "pointer" }} onClick={() => { setSelected(r); setView("detail"); }}><span style={S.badge(r.statut)}>{r.statut}</span></td>
-                        <td style={S.td(zoomTable)}><input type="text" style={{ ...S.inlineInput, color: "#1A6E35", fontWeight: "700", width: "70px" }} value={r.prix||""} onChange={e => updateField(r.id, "prix", e.target.value)} /></td>
-                        <td style={S.td(zoomTable)}><button style={S.deleteBtn} onClick={() => setConfirmDelete(r)}>🗑️</button></td>
-                      </tr>
-                    ))}
+                    {filtered.map(r => {
+                      const resteDu = (parseFloat(r.prix)||0) - (parseFloat(r.acompte)||0);
+                      return (
+                        <tr key={r.id} style={S.rowColored(r.statut)}>
+                          <td style={S.td(zoomTable)}><input type="text" style={{ ...S.inlineInput, color: "#B84A00", fontWeight: "700", width: "65px" }} value={r.ticket||""} onChange={e => updateField(r.id, "ticket", e.target.value)} /></td>
+                          <td style={{ ...S.td(zoomTable), cursor: "pointer" }} onClick={() => { setSelected(r); setView("detail"); }}>
+                            <div style={{ fontWeight: "600" }}>{r.client}{isOld(r.date, r.statut) && <span style={S.alertBadge}>⏱</span>}</div>
+                            <div style={{ fontSize: 11, color: "#86868b" }}>{r.tel}</div>
+                          </td>
+                          <td style={{ ...S.td(zoomTable), cursor: "pointer" }} onClick={() => { setSelected(r); setView("detail"); }}>{r.marque} {r.modele}</td>
+                          <td style={{ ...S.td(zoomTable), color: "#555", cursor: "pointer" }} onClick={() => { setSelected(r); setView("detail"); }}>{r.reparation}</td>
+                          <td style={{ ...S.td(zoomTable), cursor: "pointer" }} onClick={() => { setSelected(r); setView("detail"); }}>
+                            <div style={S.noteDisplay}>{r.notes||<span style={{ color: "#ccc" }}>—</span>}</div>
+                          </td>
+                          <td style={{ ...S.td(zoomTable), color: "#86868b" }}>{formatDate(r.date)}</td>
+                          <td style={S.td(zoomTable)}><input type="date" style={S.dateInput} value={r.date_returned||""} onChange={e => updateField(r.id, "date_returned", e.target.value)} /></td>
+                          <td style={{ ...S.td(zoomTable), cursor: "pointer" }} onClick={() => { setSelected(r); setView("detail"); }}><span style={S.badge(r.statut)}>{r.statut}</span></td>
+                          <td style={S.td(zoomTable)}><input type="text" style={{ ...S.inlineInput, color: "#1A6E35", fontWeight: "700", width: "65px" }} value={r.prix||""} onChange={e => updateField(r.id, "prix", e.target.value)} /></td>
+                          <td style={S.td(zoomTable)}><input type="text" style={{ ...S.inlineInput, color: "#A07800", fontWeight: "700", width: "65px" }} value={r.acompte||""} onChange={e => updateField(r.id, "acompte", e.target.value)} /></td>
+                          <td style={{ ...S.td(zoomTable), fontWeight: "700", color: r.acompte && parseFloat(r.acompte) > 0 ? "#B84A00" : "#86868b", fontSize: 11 }}>{r.prix ? resteDu.toFixed(2)+"€" : "—"}</td>
+                          <td style={S.td(zoomTable)}><button style={S.deleteBtn} onClick={() => setConfirmDelete(r)}>🗑️</button></td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -723,16 +794,25 @@ function MainApp({ session, subscription }) {
                     </select>
                   </div>
                   <div><label style={S.label}>Prix estimé</label><input style={S.input} placeholder="45€" value={form.prix} onChange={e => setForm({ ...form, prix: e.target.value })} /></div>
-                </div>
-                <div style={{ ...S.formGrid, marginTop: 16 }}>
-                  <div><label style={S.label}>Date de dépôt</label><input style={S.input} type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} /></div>
-                  <div><label style={S.label}>Date de rendu</label><input style={S.input} type="date" value={form.date_returned} onChange={e => setForm({ ...form, date_returned: e.target.value })} /></div>
+                  <div>
+                    <label style={{ ...S.label, color: "#A07800" }}>💰 Acompte reçu</label>
+                    <input style={{ ...S.input, borderColor: form.acompte ? "rgba(160,120,0,0.3)" : "transparent" }} placeholder="0€" value={form.acompte} onChange={e => setForm({ ...form, acompte: e.target.value })} />
+                    {form.acompte && form.prix && (
+                      <div style={{ fontSize: 12, color: "#B84A00", marginTop: 6, fontWeight: "600" }}>
+                        Reste dû : {((parseFloat(form.prix)||0) - (parseFloat(form.acompte)||0)).toFixed(2)}€
+                      </div>
+                    )}
+                  </div>
                   <div>
                     <label style={S.label}>Statut</label>
                     <select style={{ ...S.input, cursor: "pointer" }} value={form.statut} onChange={e => setForm({ ...form, statut: e.target.value })}>
                       {STATUTS.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
+                </div>
+                <div style={{ ...S.formGrid, marginTop: 16 }}>
+                  <div><label style={S.label}>Date de dépôt</label><input style={S.input} type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} /></div>
+                  <div><label style={S.label}>Date de rendu</label><input style={S.input} type="date" value={form.date_returned} onChange={e => setForm({ ...form, date_returned: e.target.value })} /></div>
                 </div>
                 <div style={{ marginTop: 16 }}>
                   <label style={S.label}>Notes</label>
@@ -773,7 +853,19 @@ function MainApp({ session, subscription }) {
                     { label: "Client", content: <span style={S.detailVal}>{selected.client}</span> },
                     { label: "Téléphone", content: <span style={S.detailVal}>{selected.tel||"—"}</span> },
                     { label: "Date de dépôt", content: <span style={S.detailVal}>{formatDate(selected.date)}</span> },
-                    { label: "Prix", content: <input type="text" style={{ ...S.inlineInput, color: "#1A6E35", fontWeight: "700", width: "150px" }} value={selected.prix||""} onChange={e => updateField(selected.id, "prix", e.target.value)} /> },
+                    { label: "Prix total", content: <input type="text" style={{ ...S.inlineInput, color: "#1A6E35", fontWeight: "700", width: "150px" }} value={selected.prix||""} onChange={e => updateField(selected.id, "prix", e.target.value)} /> },
+                    {
+                      label: "💰 Acompte reçu", content: (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <input type="text" style={{ ...S.inlineInput, color: "#A07800", fontWeight: "700", width: "100px" }} value={selected.acompte||""} onChange={e => updateField(selected.id, "acompte", e.target.value)} />
+                          {selected.acompte && parseFloat(selected.acompte) > 0 && (
+                            <span style={{ fontSize: 12, color: "#B84A00", fontWeight: "700" }}>
+                              Reste : {((parseFloat(selected.prix)||0) - (parseFloat(selected.acompte)||0)).toFixed(2)}€
+                            </span>
+                          )}
+                        </div>
+                      )
+                    },
                     { label: "Date de rendu", content: <input type="date" style={S.dateInput} value={selected.date_returned||""} onChange={e => updateField(selected.id, "date_returned", e.target.value)} /> },
                   ].map((row, i) => (
                     <div key={i} style={S.detailRow}>
@@ -790,16 +882,28 @@ function MainApp({ session, subscription }) {
               <div style={S.card}>
                 <div style={S.cardHeader}><span style={S.cardTitle}>Statut</span></div>
                 <div style={{ padding: 24 }}>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
                     {STATUTS_BOUTONS.map(s => (
                       <button key={s} style={S.statusBtn(selected.statut===s, s)} onClick={() => updateField(selected.id, "statut", s)}>{s}</button>
                     ))}
                   </div>
+                  {selected.acompte && parseFloat(selected.acompte) > 0 && (
+                    <div style={{ padding: 16, background: "rgba(160,120,0,0.08)", border: "1px solid rgba(160,120,0,0.2)", borderRadius: 14, marginBottom: 16 }}>
+                      <div style={{ color: "#A07800", fontWeight: "700", fontSize: 14, marginBottom: 4 }}>💰 Acompte reçu : {selected.acompte}€</div>
+                      <div style={{ color: "#B84A00", fontWeight: "700", fontSize: 15 }}>Reste dû : {((parseFloat(selected.prix)||0) - (parseFloat(selected.acompte)||0)).toFixed(2)}€</div>
+                    </div>
+                  )}
                   {selected.statut === "Prête" && (
-                    <div style={{ marginTop: 20, padding: 16, background: "#A8EFC0", border: "2px solid #1A6E35", borderRadius: 14 }}>
+                    <div style={{ padding: 16, background: "#A8EFC0", border: "2px solid #1A6E35", borderRadius: 14 }}>
                       <div style={{ color: "#1A6E35", fontWeight: "700" }}>✅ Prête à rendre !</div>
                       <div style={{ fontSize: 12, color: "#1A6E35" }}>Appelez : {selected.tel}</div>
-                      {selected.prix && <div style={{ fontSize: 15, color: "#1A6E35", fontWeight: "700" }}>💰 {selected.prix}€</div>}
+                      {selected.prix && (
+                        <div style={{ fontSize: 15, color: "#1A6E35", marginTop: 8, fontWeight: "700" }}>
+                          💰 {selected.acompte && parseFloat(selected.acompte) > 0
+                            ? `Reste dû : ${((parseFloat(selected.prix)||0) - (parseFloat(selected.acompte)||0)).toFixed(2)}€`
+                            : `${selected.prix}€ à encaisser`}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -812,7 +916,6 @@ function MainApp({ session, subscription }) {
   );
 }
 
-// ===== APP PRINCIPALE =====
 export default function App() {
   const [session, setSession] = useState(null);
   const [subscription, setSubscription] = useState(null);
@@ -845,8 +948,7 @@ export default function App() {
   function isTrialExpired(sub) {
     if (!sub) return false;
     if (sub.status === "paid") return false;
-    const days = Math.floor((new Date() - new Date(sub.trial_start)) / (1000 * 60 * 60 * 24));
-    return days >= 15;
+    return Math.floor((new Date() - new Date(sub.trial_start)) / (1000 * 60 * 60 * 24)) >= 15;
   }
 
   if (loading) return (
@@ -856,6 +958,6 @@ export default function App() {
   );
 
   if (!session) return <LoginPage />;
-  if (isTrialExpired(subscription)) return <TrialExpiredPage session={session} />;
+  if (isTrialExpired(subscription)) return <TrialExpiredPage />;
   return <MainApp session={session} subscription={subscription} />;
 }
