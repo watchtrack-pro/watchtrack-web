@@ -345,7 +345,7 @@ function MainApp({ session, subscription }) {
   };
 
   const clientsMap = repairs.reduce((acc, r) => {
-    const key = r.client?.toLowerCase().trim();
+    const key = `${r.client?.toLowerCase().trim()}_${r.tel?.trim()}`;
     if (!key) return acc;
     if (!acc[key]) acc[key] = { nom: r.client, tel: r.tel, montres: [], totalDepense: 0, totalAcompte: 0, derniereVisite: r.date, marquesCount: {} };
     acc[key].montres.push(r);
