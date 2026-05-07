@@ -144,6 +144,7 @@ function MainApp({ session, subscription }) {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [hoveredNav, setHoveredNav] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [importLoading, setImportLoading] = useState(false);
   const [nextFactureId, setNextFactureId] = useState(1);
   const [atelier, setAtelier] = useState({ nom: "", adresse: "", codePostal: "", ville: "", siret: "", email: "", tel: "" });
   const [form, setForm] = useState({
@@ -203,6 +204,45 @@ function MainApp({ session, subscription }) {
   function saveAtelier(newAtelier) {
     setAtelier(newAtelier);
     localStorage.setItem(`atelier_${userId}`, JSON.stringify(newAtelier));
+  }
+
+  async function importerDepuisExe(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    setImportLoading(true);
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (!data.repairs) { alert("❌ Fichier invalide !"); setImportLoading(false); return; }
+        let imported = 0;
+        let errors = 0;
+        for (const r of data.repairs) {
+          const newRepair = {
+            user_id: userId,
+            ticket: r.ticket || "",
+            client: r.client || "",
+            tel: r.tel || "",
+            marque: r.marque || "",
+            modele: r.modele || "",
+            reparation: r.reparation || "",
+            statut: r.statut || "Reçue",
+            prix: r.prix || "",
+            acompte: r.acompte || "",
+            date: r.date || new Date().toISOString().split("T")[0],
+            date_returned: r.date_returned || r.dateReturned || "",
+            notes: r.notes || "",
+          };
+          const { error } = await supabase.from("repairs").insert([newRepair]);
+          if (!error) imported++;
+          else errors++;
+        }
+        await loadRepairs();
+        alert(`✅ ${imported} réparation(s) importée(s) avec succès !${errors > 0 ? `\n⚠️ ${errors} erreur(s)` : ""}`);
+      } catch { alert("❌ Erreur lors de l'import ! Vérifiez le fichier JSON."); }
+      setImportLoading(false);
+    };
+    reader.readAsText(file);
   }
 
   function downloadExcel() {
@@ -381,7 +421,6 @@ function MainApp({ session, subscription }) {
     statCard: { background: "rgba(255,255,255,0.9)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.8)", borderRadius: 20, padding: "24px", position: "relative", overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.06)" },
     rowColored: (statut) => ({ background: STATUT_COLORS[statut]?.rowBg||"white" }),
     alertBadge: { display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 8, fontSize: 10, fontWeight: "700", background: "#FF3B3015", color: "#FF3B30", marginLeft: 8 },
-    acompteBadge: { display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 8, fontSize: 10, fontWeight: "700", background: "rgba(26,110,53,0.1)", color: "#1A6E35", marginLeft: 6 },
     sectionTitle: { fontSize: 22, fontWeight: "700", color: "#1d1d1f", marginBottom: 4, letterSpacing: "-0.5px" },
     sectionSub: { fontSize: 13, color: "#86868b", marginBottom: 24 },
     divider: { height: 1, background: "rgba(0,0,0,0.06)", margin: "24px 0" },
@@ -466,6 +505,7 @@ function MainApp({ session, subscription }) {
           </div>
         )}
 
+        {/* ===== ATELIER ===== */}
         {!loading && view === "atelier" && (
           <>
             <div style={{ marginBottom: 28 }}>
@@ -492,8 +532,26 @@ function MainApp({ session, subscription }) {
               <div style={{ marginTop: 24, padding: 16, background: "rgba(52,199,89,0.1)", borderRadius: 12 }}>
                 <p style={{ color: "#2E8B4A", fontSize: 13, fontWeight: "600", margin: 0 }}>✅ Sauvegardé automatiquement !</p>
               </div>
+
+              {/* IMPORT DEPUIS .EXE */}
               <div style={{ marginTop: 20, padding: 24, background: "rgba(0,122,255,0.06)", borderRadius: 16, border: "1px solid rgba(0,122,255,0.2)" }}>
-                <p style={{ color: "#007AFF", fontSize: 15, fontWeight: "700", marginBottom: 16 }}>💳 Mon abonnement</p>
+                <p style={{ color: "#007AFF", fontSize: 15, fontWeight: "700", marginBottom: 8 }}>📥 Importer depuis le logiciel .exe</p>
+                <p style={{ color: "#86868b", fontSize: 12, marginBottom: 8 }}>Importez vos réparations exportées depuis WatchTrack MontrePro sur PC</p>
+                <div style={{ background: "rgba(0,0,0,0.04)", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 12, color: "#555" }}>
+                  <div style={{ fontWeight: "600", marginBottom: 4 }}>Comment faire :</div>
+                  <div>1. Sur le logiciel PC → ⚙️ Mon Atelier → 📤 Exporter mes données</div>
+                  <div>2. Sauvegardez le fichier JSON</div>
+                  <div>3. Cliquez le bouton ci-dessous et choisissez le fichier</div>
+                </div>
+                <label style={{ padding: "12px 24px", background: importLoading ? "rgba(0,122,255,0.3)" : "linear-gradient(135deg, #007AFF, #0051D5)", color: "white", borderRadius: 12, cursor: importLoading ? "not-allowed" : "pointer", fontSize: 13, fontWeight: "700", display: "inline-block" }}>
+                  {importLoading ? "⏳ Import en cours..." : "📥 Choisir le fichier JSON"}
+                  <input type="file" accept=".json" style={{ display: "none" }} onChange={importerDepuisExe} disabled={importLoading} />
+                </label>
+              </div>
+
+              {/* ABONNEMENT */}
+              <div style={{ marginTop: 20, padding: 24, background: "rgba(52,199,89,0.06)", borderRadius: 16, border: "1px solid rgba(52,199,89,0.2)" }}>
+                <p style={{ color: "#2E8B4A", fontSize: 15, fontWeight: "700", marginBottom: 16 }}>💳 Mon abonnement</p>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                   <a href="https://buy.stripe.com/00w14ncT29W28fD8o26g804" target="_blank" rel="noreferrer"
                     style={{ padding: "12px 24px", background: "linear-gradient(135deg, #34C759, #2E8B4A)", color: "white", borderRadius: 12, fontSize: 13, fontWeight: "700", textDecoration: "none" }}>
@@ -512,6 +570,7 @@ function MainApp({ session, subscription }) {
           </>
         )}
 
+        {/* ===== CLIENTS ===== */}
         {!loading && view === "clients" && !selectedClient && (
           <>
             <div style={{ marginBottom: 28 }}>
@@ -535,7 +594,7 @@ function MainApp({ session, subscription }) {
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <div style={{ padding: "4px 10px", background: "rgba(26,95,168,0.1)", borderRadius: 8, fontSize: 11, fontWeight: "600", color: "#1A5FA8" }}>⌚ {c.montres.length}</div>
                     {c.montres.filter(m => m.statut !== "Rendue").length > 0 && <div style={{ padding: "4px 10px", background: "rgba(184,74,0,0.1)", borderRadius: 8, fontSize: 11, fontWeight: "600", color: "#B84A00" }}>🔧 {c.montres.filter(m => m.statut !== "Rendue").length} en cours</div>}
-                    {c.totalAcompte > 0 && <div style={{ padding: "4px 10px", background: "rgba(26,110,53,0.1)", borderRadius: 8, fontSize: 11, fontWeight: "600", color: "#1A6E35" }}>💰 {c.totalAcompte.toFixed(0)}€ acompte</div>}
+                    {c.totalAcompte > 0 && <div style={{ padding: "4px 10px", background: "rgba(26,110,53,0.1)", borderRadius: 8, fontSize: 11, fontWeight: "600", color: "#1A6E35" }}>💰 {c.totalAcompte.toFixed(0)}€</div>}
                   </div>
                 </div>
               ))}
@@ -543,6 +602,7 @@ function MainApp({ session, subscription }) {
           </>
         )}
 
+        {/* ===== FICHE CLIENT ===== */}
         {!loading && view === "clients" && selectedClient && (
           <>
             <div style={{ marginBottom: 24, display: "flex", alignItems: "center", gap: 16 }}>
@@ -590,6 +650,7 @@ function MainApp({ session, subscription }) {
           </>
         )}
 
+        {/* ===== DASHBOARD ===== */}
         {!loading && view === "dashboard" && (
           <>
             <div style={{ marginBottom: 28 }}>
@@ -692,6 +753,7 @@ function MainApp({ session, subscription }) {
           </>
         )}
 
+        {/* ===== LISTE ===== */}
         {!loading && view === "list" && (
           <>
             <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
@@ -756,6 +818,7 @@ function MainApp({ session, subscription }) {
           </>
         )}
 
+        {/* ===== FORMULAIRE ===== */}
         {!loading && view === "form" && (
           <>
             <div style={{ marginBottom: 28, display: "flex", alignItems: "center", gap: 16 }}>
@@ -827,6 +890,7 @@ function MainApp({ session, subscription }) {
           </>
         )}
 
+        {/* ===== DETAIL ===== */}
         {!loading && view === "detail" && selected && (
           <>
             <div style={{ marginBottom: 24, display: "flex", alignItems: "center", gap: 16, justifyContent: "space-between" }}>
@@ -855,7 +919,7 @@ function MainApp({ session, subscription }) {
                     { label: "Date de dépôt", content: <span style={S.detailVal}>{formatDate(selected.date)}</span> },
                     { label: "Prix total", content: <input type="text" style={{ ...S.inlineInput, color: "#1A6E35", fontWeight: "700", width: "150px" }} value={selected.prix||""} onChange={e => updateField(selected.id, "prix", e.target.value)} /> },
                     {
-                      label: "💰 Acompte reçu", content: (
+                      label: "💰 Acompte", content: (
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <input type="text" style={{ ...S.inlineInput, color: "#A07800", fontWeight: "700", width: "100px" }} value={selected.acompte||""} onChange={e => updateField(selected.id, "acompte", e.target.value)} />
                           {selected.acompte && parseFloat(selected.acompte) > 0 && (
