@@ -73,6 +73,20 @@ function LoginPage() {
         <input type="password" placeholder="Mot de passe" value={password} onChange={e => setPassword(e.target.value)}
           onKeyDown={e => e.key === "Enter" && handleAuth()}
           style={{ width: "100%", padding: "14px 16px", background: "rgba(118,118,128,0.08)", border: "none", borderRadius: 12, fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box", marginBottom: 16 }} />
+          {!isSignUp && (
+  <p style={{ textAlign: "right", fontSize: 12, marginBottom: 12, marginTop: -8 }}>
+    <span onClick={async () => {
+      if (!email) { alert("Entrez votre email d'abord !"); return; }
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: "https://app.watchtrack-pro.fr"
+      });
+      if (error) alert("❌ Erreur : " + error.message);
+      else alert("✅ Email de réinitialisation envoyé sur " + email + " !");
+    }} style={{ color: "#2E8B4A", cursor: "pointer", fontWeight: "600" }}>
+      Mot de passe oublié ?
+    </span>
+  </p>
+)}
         {error && <p style={{ color: error.includes("✅") ? "#2E8B4A" : "#FF3B30", fontSize: 13, marginBottom: 16, textAlign: "center" }}>{error}</p>}
         <button onClick={handleAuth} disabled={loading}
           style={{ width: "100%", padding: "14px", background: "linear-gradient(135deg, #34C759, #2E8B4A)", color: "white", border: "none", borderRadius: 12, fontSize: 15, fontWeight: "700", fontFamily: "inherit", cursor: "pointer", marginBottom: 16 }}>
