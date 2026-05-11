@@ -7,15 +7,16 @@ const supabase = createClient(
   "sb_publishable_pouKFZC07R6I6qL1uLESJg_ABjLkBOf"
 );
 
-const STATUTS = ["Reçue", "En diagnostic", "En réparation", "En attente de pièce", "Prête", "Rendue"];
-const STATUTS_BOUTONS = ["En diagnostic", "En réparation", "En attente de pièce", "Prête", "Rendue"];
+const STATUTS = ["Reçue", "En diagnostic", "En réparation", "En attente de pièce", "En Atelier", "Prête", "Rendue"];
+const STATUTS_BOUTONS = ["En diagnostic", "En réparation", "En attente de pièce", "En Atelier", "Prête", "Rendue"];
 const REPARATIONS = ["Changement de pile", "Révision complète", "Changement de verre", "Réglage de bracelet", "Remise en marche", "Nettoyage & graissage", "Changement de couronne", "Étanchéité", "Aiguillage", "Collage index", "Autre (écrire)"];
 
 const STATUT_COLORS = {
-  "Reçue": { accent: "#1A5FA8", bgLight: "#B8D9F5", rowBg: "#C8E4FF" },
-  "En diagnostic": { accent: "#6B1E9E", bgLight: "#DFB0F7", rowBg: "#EAC8FF" },
-  "En réparation": { accent: "#B84A00", bgLight: "#FAC898", rowBg: "#FFD9B0" },
-  "En attente de pièce": { accent: "#A07800", bgLight: "#F5DC60", rowBg: "#FFE870" },
+  "Reçue": { accent: "#C2185B", bgLight: "#F8BBD9", rowBg: "#FCE4EC" },
+  "En diagnostic": { accent: "#6B1E9E", bgLight: "#CE93D8", rowBg: "#E1BEE7" },
+  "En réparation": { accent: "#E65100", bgLight: "#FF8C42", rowBg: "#FFE0B2" },
+  "En attente de pièce": { accent: "#F57F00", bgLight: "#FFD600", rowBg: "#FFF176" },
+  "En Atelier": { accent: "#1565C0", bgLight: "#90CAF9", rowBg: "#BBDEFB" },
   "Prête": { accent: "#1A6E35", bgLight: "#90DCA8", rowBg: "#A8EFC0" },
   "Rendue": { accent: "#8B1A1A", bgLight: "#F0A0A0", rowBg: "#FFB8B8" },
 };
