@@ -123,7 +123,7 @@ function TrialExpiredPage() {
         </div>
         <p style={{ color: "#86868b", fontSize: 13, marginBottom: 16 }}>
           Vous avez déjà payé ? Contactez-nous :<br />
-          <a href="mailto:watchtrack-pro@outlook.com" style={{ color: "#2E8B4A", fontWeight: "600" }}>watchtrack-pro@outlook.com</a>
+          <a href="mailto:watchtrack.pro@outlook.com" style={{ color: "#2E8B4A", fontWeight: "600" }}>watchtrack.pro@outlook.com</a>
         </p>
         <button onClick={() => supabase.auth.signOut()} style={{ padding: "10px 24px", background: "rgba(0,0,0,0.06)", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 13, fontWeight: "600", fontFamily: "inherit", color: "#86868b" }}>
           Se déconnecter
@@ -564,7 +564,7 @@ function MainApp({ session, subscription }) {
                   </a>
                 </div>
                 <p style={{ fontSize: 12, color: "#86868b", marginTop: 12 }}>
-                  Après paiement : <a href="mailto:watchtrack-pro@outlook.com" style={{ color: "#007AFF" }}>watchtrack-pro@outlook.com</a>
+                  Après paiement : <a href="mailto:watchtrack.pro@outlook.com" style={{ color: "#007AFF" }}>watchtrack.pro@outlook.com</a>
                 </p>
               </div>
             </div>
