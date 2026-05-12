@@ -60,6 +60,15 @@ function LoginPage() {
     setLoading(false);
   }
 
+  async function handleForgotPassword() {
+    if (!email) { setError("❌ Entrez votre email d'abord !"); return; }
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: "https://app.watchtrack-pro.fr"
+    });
+    if (error) setError("❌ Erreur : " + error.message);
+    else setError("✅ Email de réinitialisation envoyé sur " + email + " !");
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #f0f4f0 0%, #e8f0e8 50%, #f5f5f7 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       <div style={{ background: "rgba(255,255,255,0.95)", borderRadius: 28, padding: 48, maxWidth: 420, width: "90%", boxShadow: "0 8px 40px rgba(0,0,0,0.1)" }}>
@@ -72,21 +81,14 @@ function LoginPage() {
           style={{ width: "100%", padding: "14px 16px", background: "rgba(118,118,128,0.08)", border: "none", borderRadius: 12, fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box", marginBottom: 12 }} />
         <input type="password" placeholder="Mot de passe" value={password} onChange={e => setPassword(e.target.value)}
           onKeyDown={e => e.key === "Enter" && handleAuth()}
-          style={{ width: "100%", padding: "14px 16px", background: "rgba(118,118,128,0.08)", border: "none", borderRadius: 12, fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box", marginBottom: 16 }} />
-          {!isSignUp && (
-  <p style={{ textAlign: "right", fontSize: 12, marginBottom: 12, marginTop: -8 }}>
-    <span onClick={async () => {
-      if (!email) { alert("Entrez votre email d'abord !"); return; }
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: "https://app.watchtrack-pro.fr"
-      });
-      if (error) alert("❌ Erreur : " + error.message);
-      else alert("✅ Email de réinitialisation envoyé sur " + email + " !");
-    }} style={{ color: "#2E8B4A", cursor: "pointer", fontWeight: "600" }}>
-      Mot de passe oublié ?
-    </span>
-  </p>
-)}
+          style={{ width: "100%", padding: "14px 16px", background: "rgba(118,118,128,0.08)", border: "none", borderRadius: 12, fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box", marginBottom: 8 }} />
+        {!isSignUp && (
+          <p style={{ textAlign: "right", fontSize: 12, marginBottom: 16 }}>
+            <span onClick={handleForgotPassword} style={{ color: "#2E8B4A", cursor: "pointer", fontWeight: "600" }}>
+              Mot de passe oublié ?
+            </span>
+          </p>
+        )}
         {error && <p style={{ color: error.includes("✅") ? "#2E8B4A" : "#FF3B30", fontSize: 13, marginBottom: 16, textAlign: "center" }}>{error}</p>}
         <button onClick={handleAuth} disabled={loading}
           style={{ width: "100%", padding: "14px", background: "linear-gradient(135deg, #34C759, #2E8B4A)", color: "white", border: "none", borderRadius: 12, fontSize: 15, fontWeight: "700", fontFamily: "inherit", cursor: "pointer", marginBottom: 16 }}>
@@ -186,6 +188,17 @@ function MainApp({ session, subscription }) {
     if (saved) setAtelier(JSON.parse(saved));
   }
 
+  async function handlePasswordReset() {
+    const newPassword = prompt("Entrez votre nouveau mot de passe (minimum 6 caractères) :");
+    if (!newPassword || newPassword.length < 6) {
+      alert("❌ Le mot de passe doit faire au moins 6 caractères !");
+      return;
+    }
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) alert("❌ Erreur : " + error.message);
+    else alert("✅ Mot de passe changé avec succès !");
+  }
+
   async function handleSubmit() {
     if (!form.client || !form.marque) { alert("Remplissez le nom et la marque !"); return; }
     const finalReparation = form.reparation === "Autre (écrire)" ? "Autre" : form.reparation;
@@ -235,15 +248,9 @@ function MainApp({ session, subscription }) {
         for (const r of data.repairs) {
           const newRepair = {
             user_id: userId,
-            ticket: r.ticket || "",
-            client: r.client || "",
-            tel: r.tel || "",
-            marque: r.marque || "",
-            modele: r.modele || "",
-            reparation: r.reparation || "",
-            statut: r.statut || "Reçue",
-            prix: r.prix || "",
-            acompte: r.acompte || "",
+            ticket: r.ticket || "", client: r.client || "", tel: r.tel || "",
+            marque: r.marque || "", modele: r.modele || "", reparation: r.reparation || "",
+            statut: r.statut || "Reçue", prix: r.prix || "", acompte: r.acompte || "",
             date: r.date || new Date().toISOString().split("T")[0],
             date_returned: r.date_returned || r.dateReturned || "",
             notes: r.notes || "",
@@ -253,119 +260,105 @@ function MainApp({ session, subscription }) {
           else errors++;
         }
         await loadRepairs();
-        alert(`✅ ${imported} réparation(s) importée(s) avec succès !${errors > 0 ? `\n⚠️ ${errors} erreur(s)` : ""}`);
-      } catch { alert("❌ Erreur lors de l'import ! Vérifiez le fichier JSON."); }
+        alert(`✅ ${imported} réparation(s) importée(s) !${errors > 0 ? `\n⚠️ ${errors} erreur(s)` : ""}`);
+      } catch { alert("❌ Erreur lors de l'import !"); }
       setImportLoading(false);
     };
     reader.readAsText(file);
   }
 
   function downloadExcel() {
-  const statusColors = {
-    "Reçue": { bg: "#FCE4EC", color: "#C2185B" },
-    "Received": { bg: "#FCE4EC", color: "#C2185B" },
-    "En diagnostic": { bg: "#E1BEE7", color: "#6B1E9E" },
-    "Diagnosing": { bg: "#E1BEE7", color: "#6B1E9E" },
-    "En réparation": { bg: "#FFE0B2", color: "#E65100" },
-    "In repair": { bg: "#FFE0B2", color: "#E65100" },
-    "En attente de pièce": { bg: "#FFF176", color: "#F57F00" },
-    "Waiting for part": { bg: "#FFF176", color: "#F57F00" },
-    "En Atelier": { bg: "#BBDEFB", color: "#1565C0" },
-    "At Workshop": { bg: "#BBDEFB", color: "#1565C0" },
-    "Prête": { bg: "#A8EFC0", color: "#1A6E35" },
-    "Ready": { bg: "#A8EFC0", color: "#1A6E35" },
-    "Rendue": { bg: "#FFB8B8", color: "#8B1A1A" },
-    "Returned": { bg: "#FFB8B8", color: "#8B1A1A" },
-  };
+    const statusColors = {
+      "Reçue": { bg: "#FCE4EC", color: "#C2185B" },
+      "En diagnostic": { bg: "#E1BEE7", color: "#6B1E9E" },
+      "En réparation": { bg: "#FFE0B2", color: "#E65100" },
+      "En attente de pièce": { bg: "#FFF176", color: "#F57F00" },
+      "En Atelier": { bg: "#BBDEFB", color: "#1565C0" },
+      "Prête": { bg: "#A8EFC0", color: "#1A6E35" },
+      "Rendue": { bg: "#FFB8B8", color: "#8B1A1A" },
+    };
 
-  let html = `
-    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-    <head><meta charset="UTF-8">
-    <!--[if gte mso 9]>
-    <xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
-    <x:Name>Réparations</x:Name>
-    <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
-    </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml>
-    <![endif]-->
-    </head><body>
-    <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-family:Arial; font-size:12px; width:100%;">
-    <thead>
-      <tr style="background:#2E8B4A; color:white; font-weight:bold; text-align:center;">
-        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">N° Ticket</td>
-        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Client</td>
-        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Téléphone</td>
-        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Marque</td>
-        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Modèle</td>
-        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Réparation</td>
-        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Statut</td>
-        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Prix</td>
-        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Acompte</td>
-        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Reste dû</td>
-        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Date dépôt</td>
-        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Date rendu</td>
-        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Notes</td>
-        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Jours en atelier</td>
-      </tr>
-    </thead>
-    <tbody>
-  `;
+    let html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="UTF-8"></head><body>
+      <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-family:Arial; font-size:12px;">
+      <thead>
+        <tr style="background:#2E8B4A; color:white; font-weight:bold; text-align:center;">
+          <td style="border:1px solid #1a5c30; padding:8px;">N° Ticket</td>
+          <td style="border:1px solid #1a5c30; padding:8px;">Client</td>
+          <td style="border:1px solid #1a5c30; padding:8px;">Téléphone</td>
+          <td style="border:1px solid #1a5c30; padding:8px;">Marque</td>
+          <td style="border:1px solid #1a5c30; padding:8px;">Modèle</td>
+          <td style="border:1px solid #1a5c30; padding:8px;">Réparation</td>
+          <td style="border:1px solid #1a5c30; padding:8px;">Statut</td>
+          <td style="border:1px solid #1a5c30; padding:8px;">Prix</td>
+          <td style="border:1px solid #1a5c30; padding:8px;">Acompte</td>
+          <td style="border:1px solid #1a5c30; padding:8px;">Reste dû</td>
+          <td style="border:1px solid #1a5c30; padding:8px;">Date dépôt</td>
+          <td style="border:1px solid #1a5c30; padding:8px;">Date rendu</td>
+          <td style="border:1px solid #1a5c30; padding:8px;">Notes</td>
+          <td style="border:1px solid #1a5c30; padding:8px;">Jours en atelier</td>
+        </tr>
+      </thead>
+      <tbody>
+    `;
 
-  repairs.forEach(r => {
-    const statut = r.statut || "";
-    const colors = statusColors[statut] || { bg: "#FFFFFF", color: "#000000" };
-    const resteDu = (parseFloat(r.prix) || 0) - (parseFloat(r.acompte) || 0);
-    const jours = daysSince(r.date);
-    const isAlerte = isOld(r.date, r.statut);
+    repairs.forEach(r => {
+      const statut = r.statut || "";
+      const colors = statusColors[statut] || { bg: "#FFFFFF", color: "#000000" };
+      const resteDu = (parseFloat(r.prix) || 0) - (parseFloat(r.acompte) || 0);
+      const jours = daysSince(r.date);
+      const isAlerte = isOld(r.date, r.statut);
+
+      html += `
+        <tr style="background:${colors.bg};">
+          <td style="border:1px solid #ccc; padding:6px; font-weight:bold; color:#B84A00;">${r.ticket || "—"}</td>
+          <td style="border:1px solid #ccc; padding:6px; font-weight:bold;">${r.client || ""}${isAlerte ? " ⚠️" : ""}</td>
+          <td style="border:1px solid #ccc; padding:6px;">${r.tel || ""}</td>
+          <td style="border:1px solid #ccc; padding:6px; font-weight:bold;">${r.marque || ""}</td>
+          <td style="border:1px solid #ccc; padding:6px;">${r.modele || ""}</td>
+          <td style="border:1px solid #ccc; padding:6px;">${r.reparation || ""}</td>
+          <td style="border:1px solid #ccc; padding:6px; font-weight:bold; color:${colors.color}; text-align:center;">${statut}</td>
+          <td style="border:1px solid #ccc; padding:6px; font-weight:bold; color:#1A6E35; text-align:right;">${r.prix ? r.prix + " €" : "—"}</td>
+          <td style="border:1px solid #ccc; padding:6px; font-weight:bold; color:#A07800; text-align:right;">${r.acompte ? r.acompte + " €" : "—"}</td>
+          <td style="border:1px solid #ccc; padding:6px; font-weight:bold; color:${resteDu > 0 ? "#B84A00" : "#1A6E35"}; text-align:right;">${r.prix ? resteDu.toFixed(2) + " €" : "—"}</td>
+          <td style="border:1px solid #ccc; padding:6px; text-align:center;">${formatDate(r.date)}</td>
+          <td style="border:1px solid #ccc; padding:6px; text-align:center;">${formatDate(r.date_returned)}</td>
+          <td style="border:1px solid #ccc; padding:6px; font-style:italic; color:#555;">${r.notes || ""}</td>
+          <td style="border:1px solid #ccc; padding:6px; text-align:center; font-weight:bold; color:${isAlerte ? "#FF3B30" : "#1d1d1f"};">${jours}j${isAlerte ? " ⚠️" : ""}</td>
+        </tr>
+      `;
+    });
+
+    const totalCA = repairs.filter(r => r.statut === "Rendue").reduce((s,r) => s+(parseFloat(r.prix)||0), 0);
+    const totalAcomptes = repairs.reduce((s,r) => s+(parseFloat(r.acompte)||0), 0);
+    const totalResteDu = repairs.reduce((s,r) => s+Math.max(0,(parseFloat(r.prix)||0)-(parseFloat(r.acompte)||0)), 0);
 
     html += `
-      <tr style="background:${colors.bg};">
-        <td style="border:1px solid #ccc; padding:6px; font-weight:bold; color:#B84A00;">${r.ticket || "—"}</td>
-        <td style="border:1px solid #ccc; padding:6px; font-weight:bold;">${r.client || ""}${isAlerte ? " ⚠️" : ""}</td>
-        <td style="border:1px solid #ccc; padding:6px;">${r.tel || ""}</td>
-        <td style="border:1px solid #ccc; padding:6px; font-weight:bold;">${r.marque || ""}</td>
-        <td style="border:1px solid #ccc; padding:6px;">${r.modele || ""}</td>
-        <td style="border:1px solid #ccc; padding:6px;">${r.reparation || ""}</td>
-        <td style="border:1px solid #ccc; padding:6px; font-weight:bold; color:${colors.color}; text-align:center;">${statut}</td>
-        <td style="border:1px solid #ccc; padding:6px; font-weight:bold; color:#1A6E35; text-align:right;">${r.prix ? r.prix + " €" : "—"}</td>
-        <td style="border:1px solid #ccc; padding:6px; font-weight:bold; color:#A07800; text-align:right;">${r.acompte ? r.acompte + " €" : "—"}</td>
-        <td style="border:1px solid #ccc; padding:6px; font-weight:bold; color:${resteDu > 0 ? "#B84A00" : "#1A6E35"}; text-align:right;">${r.prix ? resteDu.toFixed(2) + " €" : "—"}</td>
-        <td style="border:1px solid #ccc; padding:6px; text-align:center;">${formatDate(r.date)}</td>
-        <td style="border:1px solid #ccc; padding:6px; text-align:center;">${formatDate(r.dateReturned)}</td>
-        <td style="border:1px solid #ccc; padding:6px; font-style:italic; color:#555;">${r.notes || ""}</td>
-        <td style="border:1px solid #ccc; padding:6px; text-align:center; font-weight:bold; color:${isAlerte ? "#FF3B30" : "#1d1d1f"};">${jours}j${isAlerte ? " ⚠️" : ""}</td>
-      </tr>
+      </tbody>
+      <tfoot>
+        <tr style="background:#f5f5f5; font-weight:bold; border-top:2px solid #2E8B4A;">
+          <td colspan="7" style="border:1px solid #ccc; padding:8px; text-align:right;">TOTAUX :</td>
+          <td style="border:1px solid #ccc; padding:8px; color:#1A6E35; text-align:right;">${totalCA.toFixed(2)} €</td>
+          <td style="border:1px solid #ccc; padding:8px; color:#A07800; text-align:right;">${totalAcomptes.toFixed(2)} €</td>
+          <td style="border:1px solid #ccc; padding:8px; color:#B84A00; text-align:right;">${totalResteDu.toFixed(2)} €</td>
+          <td colspan="4" style="border:1px solid #ccc; padding:8px;"></td>
+        </tr>
+        <tr>
+          <td colspan="14" style="border:1px solid #ccc; padding:8px; text-align:center; color:#86868b; font-size:11px;">
+            WatchTrack MontrePro — Exporté le ${new Date().toLocaleDateString("fr-FR")} — watchtrack-pro.fr
+          </td>
+        </tr>
+      </tfoot>
+      </table></body></html>
     `;
-  });
 
-  const totalCA = repairs.filter(r => r.statut === "Rendue" || r.statut === "Returned").reduce((s, r) => s + (parseFloat(r.prix) || 0), 0);
-  const totalAcomptes = repairs.reduce((s, r) => s + (parseFloat(r.acompte) || 0), 0);
-  const totalResteDu = repairs.reduce((s, r) => s + Math.max(0, (parseFloat(r.prix) || 0) - (parseFloat(r.acompte) || 0)), 0);
-
-  html += `
-    </tbody>
-    <tfoot>
-      <tr style="background:#f5f5f5; font-weight:bold; border-top:2px solid #2E8B4A;">
-        <td colspan="7" style="border:1px solid #ccc; padding:8px; text-align:right; font-weight:bold;">TOTAUX :</td>
-        <td style="border:1px solid #ccc; padding:8px; color:#1A6E35; font-weight:bold; text-align:right;">${totalCA.toFixed(2)} €</td>
-        <td style="border:1px solid #ccc; padding:8px; color:#A07800; font-weight:bold; text-align:right;">${totalAcomptes.toFixed(2)} €</td>
-        <td style="border:1px solid #ccc; padding:8px; color:#B84A00; font-weight:bold; text-align:right;">${totalResteDu.toFixed(2)} €</td>
-        <td colspan="4" style="border:1px solid #ccc; padding:8px;"></td>
-      </tr>
-      <tr>
-        <td colspan="14" style="border:1px solid #ccc; padding:8px; text-align:center; color:#86868b; font-size:11px;">
-          WatchTrack MontrePro — Exporté le ${new Date().toLocaleDateString("fr-FR")} — watchtrack-pro.fr
-        </td>
-      </tr>
-    </tfoot>
-    </table></body></html>
-  `;
-
-  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8;" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `WatchTrack-${new Date().toISOString().split('T')[0]}.xls`;
-  link.click();
-}
+    const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `WatchTrack-${new Date().toISOString().split('T')[0]}.xls`;
+    link.click();
+  }
 
   function imprimerBonDepot(r) {
     const doc = new jsPDF();
@@ -489,6 +482,7 @@ function MainApp({ session, subscription }) {
     enCours: repairs.filter(r => r.statut !== "Rendue").length,
     pretes: repairs.filter(r => r.statut === "Prête").length,
     attente: repairs.filter(r => r.statut === "En attente de pièce").length,
+    enAtelier: repairs.filter(r => r.statut === "En Atelier").length,
     ca: repairs.filter(r => r.statut === "Rendue").reduce((s,r) => s+Number(r.prix||0), 0),
     acomptes: repairs.filter(r => r.acompte && parseFloat(r.acompte) > 0).reduce((s,r) => s+Number(r.acompte||0), 0),
   };
@@ -602,6 +596,7 @@ function MainApp({ session, subscription }) {
             <div style={{ padding: "8px 14px", background: "rgba(52,199,89,0.1)", borderRadius: 10, fontSize: 12, fontWeight: "700", color: "#2E8B4A" }}>✅ Licence active</div>
           )}
           <div style={{ fontSize: 12, color: "#86868b", padding: "8px 12px", background: "rgba(0,0,0,0.04)", borderRadius: 10 }}>{session.user.email}</div>
+          <button style={{ fontSize: 12, color: "#86868b", padding: "8px 12px", background: "rgba(0,0,0,0.04)", borderRadius: 10, border: "none", cursor: "pointer", fontFamily: "inherit" }} onClick={handlePasswordReset}>🔑</button>
           <button style={{ ...S.btn("danger"), padding: "8px 16px", fontSize: 12 }} onClick={() => supabase.auth.signOut()}>Déconnexion</button>
         </nav>
       </header>
@@ -614,7 +609,6 @@ function MainApp({ session, subscription }) {
           </div>
         )}
 
-        {/* ===== ATELIER ===== */}
         {!loading && view === "atelier" && (
           <>
             <div style={{ marginBottom: 28 }}>
@@ -642,7 +636,13 @@ function MainApp({ session, subscription }) {
                 <p style={{ color: "#2E8B4A", fontSize: 13, fontWeight: "600", margin: 0 }}>✅ Sauvegardé automatiquement !</p>
               </div>
 
-              {/* IMPORT DEPUIS .EXE */}
+              <div style={{ marginTop: 20, padding: 24, background: "rgba(0,0,0,0.03)", borderRadius: 16, border: "1px solid rgba(0,0,0,0.08)" }}>
+                <p style={{ color: "#1d1d1f", fontSize: 15, fontWeight: "700", marginBottom: 8 }}>🔑 Changer mon mot de passe</p>
+                <button onClick={handlePasswordReset} style={{ padding: "12px 24px", background: "rgba(0,0,0,0.06)", color: "#1d1d1f", border: "1px solid rgba(0,0,0,0.1)", borderRadius: 12, cursor: "pointer", fontSize: 13, fontWeight: "700", fontFamily: "inherit" }}>
+                  🔑 Changer le mot de passe
+                </button>
+              </div>
+
               <div style={{ marginTop: 20, padding: 24, background: "rgba(0,122,255,0.06)", borderRadius: 16, border: "1px solid rgba(0,122,255,0.2)" }}>
                 <p style={{ color: "#007AFF", fontSize: 15, fontWeight: "700", marginBottom: 8 }}>📥 Importer depuis le logiciel .exe</p>
                 <p style={{ color: "#86868b", fontSize: 12, marginBottom: 8 }}>Importez vos réparations exportées depuis WatchTrack MontrePro sur PC</p>
@@ -650,7 +650,7 @@ function MainApp({ session, subscription }) {
                   <div style={{ fontWeight: "600", marginBottom: 4 }}>Comment faire :</div>
                   <div>1. Sur le logiciel PC → ⚙️ Mon Atelier → 📤 Exporter mes données</div>
                   <div>2. Sauvegardez le fichier JSON</div>
-                  <div>3. Cliquez le bouton ci-dessous et choisissez le fichier</div>
+                  <div>3. Cliquez le bouton ci-dessous</div>
                 </div>
                 <label style={{ padding: "12px 24px", background: importLoading ? "rgba(0,122,255,0.3)" : "linear-gradient(135deg, #007AFF, #0051D5)", color: "white", borderRadius: 12, cursor: importLoading ? "not-allowed" : "pointer", fontSize: 13, fontWeight: "700", display: "inline-block" }}>
                   {importLoading ? "⏳ Import en cours..." : "📥 Choisir le fichier JSON"}
@@ -658,7 +658,6 @@ function MainApp({ session, subscription }) {
                 </label>
               </div>
 
-              {/* ABONNEMENT */}
               <div style={{ marginTop: 20, padding: 24, background: "rgba(52,199,89,0.06)", borderRadius: 16, border: "1px solid rgba(52,199,89,0.2)" }}>
                 <p style={{ color: "#2E8B4A", fontSize: 15, fontWeight: "700", marginBottom: 16 }}>💳 Mon abonnement</p>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -679,7 +678,6 @@ function MainApp({ session, subscription }) {
           </>
         )}
 
-        {/* ===== CLIENTS ===== */}
         {!loading && view === "clients" && !selectedClient && (
           <>
             <div style={{ marginBottom: 28 }}>
@@ -711,7 +709,6 @@ function MainApp({ session, subscription }) {
           </>
         )}
 
-        {/* ===== FICHE CLIENT ===== */}
         {!loading && view === "clients" && selectedClient && (
           <>
             <div style={{ marginBottom: 24, display: "flex", alignItems: "center", gap: 16 }}>
@@ -759,7 +756,6 @@ function MainApp({ session, subscription }) {
           </>
         )}
 
-        {/* ===== DASHBOARD ===== */}
         {!loading && view === "dashboard" && (
           <>
             <div style={{ marginBottom: 28 }}>
@@ -778,23 +774,25 @@ function MainApp({ session, subscription }) {
                 </div>
               </div>
             )}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16, marginBottom: 28 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 12, marginBottom: 28 }}>
               {[
                 { label: "En atelier", val: stats.enCours, accent: "#1A5FA8", icon: "⌚" },
                 { label: "Prêtes", val: stats.pretes, accent: "#1A6E35", icon: "✅" },
                 { label: "Attente pièce", val: stats.attente, accent: "#A07800", icon: "⏳" },
+                { label: "En Atelier ext.", val: stats.enAtelier, accent: "#1565C0", icon: "🔵" },
                 { label: "Total fiches", val: stats.total, accent: "#6B1E9E", icon: "📋" },
                 { label: "CA encaissé", val: stats.ca+"€", accent: "#B84A00", icon: "💰" },
                 { label: "Acomptes", val: stats.acomptes+"€", accent: "#1A6E35", icon: "💵" },
               ].map((s,i) => (
                 <div key={i} style={S.statCard}>
                   <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: s.accent, borderRadius: "20px 20px 0 0" }} />
-                  <div style={{ width: 44, height: 44, background: `${s.accent}18`, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, marginBottom: 12 }}>{s.icon}</div>
-                  <div style={{ fontSize: 28, color: "#1d1d1f", marginBottom: 4, fontWeight: "700" }}>{s.val}</div>
-                  <div style={{ fontSize: 12, color: "#86868b" }}>{s.label}</div>
+                  <div style={{ width: 40, height: 40, background: `${s.accent}18`, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, marginBottom: 10 }}>{s.icon}</div>
+                  <div style={{ fontSize: 24, color: "#1d1d1f", marginBottom: 4, fontWeight: "700" }}>{s.val}</div>
+                  <div style={{ fontSize: 11, color: "#86868b" }}>{s.label}</div>
                 </div>
               ))}
             </div>
+
             {oldRepairs.length > 0 && (
               <div style={{ ...S.card, marginBottom: 20, border: "1px solid rgba(255,59,48,0.2)" }}>
                 <div style={{ ...S.cardHeader, background: "rgba(255,59,48,0.05)" }}>
@@ -812,6 +810,7 @@ function MainApp({ session, subscription }) {
                 ))}
               </div>
             )}
+
             {repairs.filter(r => r.acompte && parseFloat(r.acompte) > 0 && r.statut !== "Rendue").length > 0 && (
               <div style={{ ...S.card, marginBottom: 20, border: "1px solid rgba(26,110,53,0.2)" }}>
                 <div style={{ ...S.cardHeader, background: "rgba(26,110,53,0.05)" }}>
@@ -834,6 +833,7 @@ function MainApp({ session, subscription }) {
                 })}
               </div>
             )}
+
             <div style={S.card}>
               <div style={S.cardHeader}>
                 <span style={S.cardTitle}>Réparations récentes</span>
@@ -862,7 +862,6 @@ function MainApp({ session, subscription }) {
           </>
         )}
 
-        {/* ===== LISTE ===== */}
         {!loading && view === "list" && (
           <>
             <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
@@ -927,7 +926,6 @@ function MainApp({ session, subscription }) {
           </>
         )}
 
-        {/* ===== FORMULAIRE ===== */}
         {!loading && view === "form" && (
           <>
             <div style={{ marginBottom: 28, display: "flex", alignItems: "center", gap: 16 }}>
@@ -999,7 +997,6 @@ function MainApp({ session, subscription }) {
           </>
         )}
 
-        {/* ===== DETAIL ===== */}
         {!loading && view === "detail" && selected && (
           <>
             <div style={{ marginBottom: 24, display: "flex", alignItems: "center", gap: 16, justifyContent: "space-between" }}>
