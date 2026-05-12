@@ -261,17 +261,111 @@ function MainApp({ session, subscription }) {
   }
 
   function downloadExcel() {
-    let csv = "N° Ticket,Nom Client,Téléphone,Marque,Modèle,Réparation,Statut,Prix,Acompte,Reste dû,Date dépôt,Date rendu,Notes\n";
-    repairs.forEach(r => {
-      const resteDu = (parseFloat(r.prix) || 0) - (parseFloat(r.acompte) || 0);
-      csv += `"${r.ticket||''}","${r.client}","${r.tel}","${r.marque}","${r.modele}","${r.reparation}","${r.statut}","${r.prix}","${r.acompte||''}","${resteDu.toFixed(2)}","${formatDate(r.date)}","${formatDate(r.date_returned)}","${r.notes||''}"\n`;
-    });
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `WatchTrack-${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-  }
+  const statusColors = {
+    "Reçue": { bg: "#FCE4EC", color: "#C2185B" },
+    "Received": { bg: "#FCE4EC", color: "#C2185B" },
+    "En diagnostic": { bg: "#E1BEE7", color: "#6B1E9E" },
+    "Diagnosing": { bg: "#E1BEE7", color: "#6B1E9E" },
+    "En réparation": { bg: "#FFE0B2", color: "#E65100" },
+    "In repair": { bg: "#FFE0B2", color: "#E65100" },
+    "En attente de pièce": { bg: "#FFF176", color: "#F57F00" },
+    "Waiting for part": { bg: "#FFF176", color: "#F57F00" },
+    "En Atelier": { bg: "#BBDEFB", color: "#1565C0" },
+    "At Workshop": { bg: "#BBDEFB", color: "#1565C0" },
+    "Prête": { bg: "#A8EFC0", color: "#1A6E35" },
+    "Ready": { bg: "#A8EFC0", color: "#1A6E35" },
+    "Rendue": { bg: "#FFB8B8", color: "#8B1A1A" },
+    "Returned": { bg: "#FFB8B8", color: "#8B1A1A" },
+  };
+
+  let html = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+    <head><meta charset="UTF-8">
+    <!--[if gte mso 9]>
+    <xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+    <x:Name>Réparations</x:Name>
+    <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+    </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml>
+    <![endif]-->
+    </head><body>
+    <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-family:Arial; font-size:12px; width:100%;">
+    <thead>
+      <tr style="background:#2E8B4A; color:white; font-weight:bold; text-align:center;">
+        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">N° Ticket</td>
+        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Client</td>
+        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Téléphone</td>
+        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Marque</td>
+        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Modèle</td>
+        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Réparation</td>
+        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Statut</td>
+        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Prix</td>
+        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Acompte</td>
+        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Reste dû</td>
+        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Date dépôt</td>
+        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Date rendu</td>
+        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Notes</td>
+        <td style="background:#2E8B4A; color:white; font-weight:bold; border:1px solid #1a5c30; padding:8px;">Jours en atelier</td>
+      </tr>
+    </thead>
+    <tbody>
+  `;
+
+  repairs.forEach(r => {
+    const statut = r.statut || "";
+    const colors = statusColors[statut] || { bg: "#FFFFFF", color: "#000000" };
+    const resteDu = (parseFloat(r.prix) || 0) - (parseFloat(r.acompte) || 0);
+    const jours = daysSince(r.date);
+    const isAlerte = isOld(r.date, r.statut);
+
+    html += `
+      <tr style="background:${colors.bg};">
+        <td style="border:1px solid #ccc; padding:6px; font-weight:bold; color:#B84A00;">${r.ticket || "—"}</td>
+        <td style="border:1px solid #ccc; padding:6px; font-weight:bold;">${r.client || ""}${isAlerte ? " ⚠️" : ""}</td>
+        <td style="border:1px solid #ccc; padding:6px;">${r.tel || ""}</td>
+        <td style="border:1px solid #ccc; padding:6px; font-weight:bold;">${r.marque || ""}</td>
+        <td style="border:1px solid #ccc; padding:6px;">${r.modele || ""}</td>
+        <td style="border:1px solid #ccc; padding:6px;">${r.reparation || ""}</td>
+        <td style="border:1px solid #ccc; padding:6px; font-weight:bold; color:${colors.color}; text-align:center;">${statut}</td>
+        <td style="border:1px solid #ccc; padding:6px; font-weight:bold; color:#1A6E35; text-align:right;">${r.prix ? r.prix + " €" : "—"}</td>
+        <td style="border:1px solid #ccc; padding:6px; font-weight:bold; color:#A07800; text-align:right;">${r.acompte ? r.acompte + " €" : "—"}</td>
+        <td style="border:1px solid #ccc; padding:6px; font-weight:bold; color:${resteDu > 0 ? "#B84A00" : "#1A6E35"}; text-align:right;">${r.prix ? resteDu.toFixed(2) + " €" : "—"}</td>
+        <td style="border:1px solid #ccc; padding:6px; text-align:center;">${formatDate(r.date)}</td>
+        <td style="border:1px solid #ccc; padding:6px; text-align:center;">${formatDate(r.dateReturned)}</td>
+        <td style="border:1px solid #ccc; padding:6px; font-style:italic; color:#555;">${r.notes || ""}</td>
+        <td style="border:1px solid #ccc; padding:6px; text-align:center; font-weight:bold; color:${isAlerte ? "#FF3B30" : "#1d1d1f"};">${jours}j${isAlerte ? " ⚠️" : ""}</td>
+      </tr>
+    `;
+  });
+
+  const totalCA = repairs.filter(r => r.statut === "Rendue" || r.statut === "Returned").reduce((s, r) => s + (parseFloat(r.prix) || 0), 0);
+  const totalAcomptes = repairs.reduce((s, r) => s + (parseFloat(r.acompte) || 0), 0);
+  const totalResteDu = repairs.reduce((s, r) => s + Math.max(0, (parseFloat(r.prix) || 0) - (parseFloat(r.acompte) || 0)), 0);
+
+  html += `
+    </tbody>
+    <tfoot>
+      <tr style="background:#f5f5f5; font-weight:bold; border-top:2px solid #2E8B4A;">
+        <td colspan="7" style="border:1px solid #ccc; padding:8px; text-align:right; font-weight:bold;">TOTAUX :</td>
+        <td style="border:1px solid #ccc; padding:8px; color:#1A6E35; font-weight:bold; text-align:right;">${totalCA.toFixed(2)} €</td>
+        <td style="border:1px solid #ccc; padding:8px; color:#A07800; font-weight:bold; text-align:right;">${totalAcomptes.toFixed(2)} €</td>
+        <td style="border:1px solid #ccc; padding:8px; color:#B84A00; font-weight:bold; text-align:right;">${totalResteDu.toFixed(2)} €</td>
+        <td colspan="4" style="border:1px solid #ccc; padding:8px;"></td>
+      </tr>
+      <tr>
+        <td colspan="14" style="border:1px solid #ccc; padding:8px; text-align:center; color:#86868b; font-size:11px;">
+          WatchTrack MontrePro — Exporté le ${new Date().toLocaleDateString("fr-FR")} — watchtrack-pro.fr
+        </td>
+      </tr>
+    </tfoot>
+    </table></body></html>
+  `;
+
+  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `WatchTrack-${new Date().toISOString().split('T')[0]}.xls`;
+  link.click();
+}
 
   function imprimerBonDepot(r) {
     const doc = new jsPDF();
